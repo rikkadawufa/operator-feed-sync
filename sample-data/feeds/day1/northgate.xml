@@ -1,0 +1,123 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<feed operator="northgate">
+  <listing ref="NG-101">
+    <name>Locker 1A, ground floor</name>
+    <unitType>Locker</unitType>
+    <sizeSqm>1.5</sizeSqm>
+    <pricePerMonth>39.00</pricePerMonth>
+    <district>Riverside</district>
+    <climate>no</climate>
+    <photo>https://images.example.com/larkspur/ng-101.jpg</photo>
+    <availability>open</availability>
+  </listing>
+  <listing ref="NG-102">
+    <name>Small unit 2B</name>
+    <unitType>Small Unit</unitType>
+    <sizeSqm>4.5</sizeSqm>
+    <pricePerMonth>79.00</pricePerMonth>
+    <district>Riverside</district>
+    <climate>yes</climate>
+    <photo>https://images.example.com/larkspur/ng-102.jpg</photo>
+    <availability>open</availability>
+  </listing>
+  <listing ref="NG-103">
+    <name>Small unit 2C</name>
+    <unitType>Small Unit</unitType>
+    <sizeSqm>5</sizeSqm>
+    <pricePerMonth>85.00</pricePerMonth>
+    <district>Riverside</district>
+    <climate>yes</climate>
+    <photo>https://images.example.com/larkspur/ng-103.jpg</photo>
+    <availability>open</availability>
+  </listing>
+  <listing ref="NG-104">
+    <name>Medium unit 3A</name>
+    <unitType>Medium Unit</unitType>
+    <sizeSqm>9</sizeSqm>
+    <pricePerMonth>139.00</pricePerMonth>
+    <district>Old Town</district>
+    <climate>yes</climate>
+    <photo>https://images.example.com/larkspur/ng-104.jpg</photo>
+    <availability>open</availability>
+  </listing>
+  <listing ref="NG-105">
+    <name>Medium unit 3B</name>
+    <unitType>Medium Unit</unitType>
+    <sizeSqm>10</sizeSqm>
+    <pricePerMonth>149.00</pricePerMonth>
+    <district>Old Town</district>
+    <climate>no</climate>
+    <photo>https://images.example.com/larkspur/ng-105.jpg</photo>
+    <availability>open</availability>
+  </listing>
+  <listing ref="NG-106">
+    <name>Large unit 4A, drive-up</name>
+    <unitType>Large Unit</unitType>
+    <sizeSqm>18</sizeSqm>
+    <pricePerMonth>229.00</pricePerMonth>
+    <district>Old Town</district>
+    <climate>no</climate>
+    <photo>https://images.example.com/larkspur/ng-106.jpg</photo>
+    <availability>open</availability>
+  </listing>
+  <listing ref="NG-107">
+    <name>Large unit 4B, drive-up</name>
+    <unitType>Large Unit</unitType>
+    <sizeSqm>20</sizeSqm>
+    <pricePerMonth>245.00</pricePerMonth>
+    <district>Old Town</district>
+    <climate>no</climate>
+    <photo>https://images.example.com/larkspur/ng-107.jpg</photo>
+    <availability>open</availability>
+  </listing>
+  <listing ref="NG-108">
+    <name>Covered parking bay P3</name>
+    <unitType>Parking Bay</unitType>
+    <sizeSqm>12.5</sizeSqm>
+    <pricePerMonth>95.00</pricePerMonth>
+    <district>Harbor</district>
+    <climate>no</climate>
+    <photo>https://images.example.com/larkspur/ng-108.jpg</photo>
+    <availability>open</availability>
+  </listing>
+  <listing ref="NG-109">
+    <name>Covered parking bay P4</name>
+    <unitType>Parking Bay</unitType>
+    <sizeSqm>12.5</sizeSqm>
+    <pricePerMonth>95.00</pricePerMonth>
+    <district>Harbor</district>
+    <climate>no</climate>
+    <photo>https://images.example.com/larkspur/ng-109.jpg</photo>
+    <availability>open</availability>
+  </listing>
+  <listing ref="NG-110">
+    <name>Locker 1B, ground floor</name>
+    <unitType>Locker</unitType>
+    <sizeSqm>1.5</sizeSqm>
+    <pricePerMonth>39.00</pricePerMonth>
+    <district>Riverside</district>
+    <climate>no</climate>
+    <photo>https://images.example.com/larkspur/ng-110.jpg</photo>
+    <availability>open</availability>
+  </listing>
+  <listing ref="NG-111">
+    <name>Medium unit 3C</name>
+    <unitType>Medium Unit</unitType>
+    <sizeSqm>9</sizeSqm>
+    <pricePerMonth>139.00</pricePerMonth>
+    <district>Old Town</district>
+    <climate>yes</climate>
+    <photo>https://images.example.com/larkspur/ng-111.jpg</photo>
+    <availability>open</availability>
+  </listing>
+  <listing ref="NG-112">
+    <name>Small unit 2D</name>
+    <unitType>Small Unit</unitType>
+    <sizeSqm>4.5</sizeSqm>
+    <pricePerMonth>79.00</pricePerMonth>
+    <district>Riverside</district>
+    <climate>yes</climate>
+    <photo>https://images.example.com/larkspur/ng-112.jpg</photo>
+    <availability>open</availability>
+  </listing>
+</feed>

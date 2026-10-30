@@ -1,0 +1,30 @@
+{
+  "id": "pinecrest",
+  "name": "Pinecrest Self Storage",
+  "enabled": true,
+  "format": "json",
+  "record": "data.units",
+  "url": "http://feeds:8080/feeds/pinecrest",
+  "fields": {
+    "external_ref": "unit_code",
+    "title": "label",
+    "unit_type": "kind",
+    "size": "dimensions.area_sqm",
+    "monthly_price": "price.value",
+    "area": "location.district",
+    "climate_controlled": "features.climate",
+    "image_url": "media.main",
+    "status": "state"
+  },
+  "values": {
+    "status": {
+      "free": "available",
+      "occupied": "rented",
+      "retired": "withdrawn"
+    }
+  },
+  "safety": {
+    "min_ratio": 0.5,
+    "min_active": 5
+  }
+}

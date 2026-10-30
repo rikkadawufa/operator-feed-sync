@@ -1,0 +1,24 @@
+{
+  "id": "northgate",
+  "name": "Northgate Storage",
+  "enabled": true,
+  "format": "xml",
+  "record": "listing",
+  "url": "http://feeds:8080/feeds/northgate",
+  "fields": {
+    "external_ref": "ref",
+    "title": "name",
+    "unit_type": "unitType",
+    "size": "sizeSqm",
+    "monthly_price": "pricePerMonth",
+    "area": "district",
+    "climate_controlled": "climate",
+    "image_url": "photo",
+    "status": "availability"
+  },
+  "values": {
+    "unit_type": { "Locker": "locker", "Small Unit": "small", "Medium Unit": "medium", "Large Unit": "large", "Parking Bay": "parking" },
+    "status": { "open": "available", "let": "rented", "withdrawn": "withdrawn" }
+  },
+  "safety": { "min_ratio": 0.5, "min_active": 5 }
+}

@@ -1,0 +1,139 @@
+{
+  "generated_at": "2026-10-30T06:00:00Z",
+  "data": {
+    "units": [
+      {
+        "unit_code": "PC-A01",
+        "label": "A01 locker",
+        "kind": "locker",
+        "dimensions": {
+          "area_sqm": "1,8"
+        },
+        "price": {
+          "amount": "45,00",
+          "currency": "USD"
+        },
+        "location": {
+          "district": "Hillcrest"
+        },
+        "features": {
+          "climate": "no"
+        },
+        "media": {
+          "main": "https://images.example.com/larkspur/pc-a01.jpg"
+        },
+        "state": "free"
+      },
+      {
+        "unit_code": "PC-B04",
+        "label": "B04 small room",
+        "kind": "small",
+        "dimensions": {
+          "area_sqm": "4,2"
+        },
+        "price": {
+          "amount": "72,50",
+          "currency": "USD"
+        },
+        "location": {
+          "district": "Hillcrest"
+        },
+        "features": {
+          "climate": "yes"
+        },
+        "media": {
+          "main": "https://images.example.com/larkspur/pc-b04.jpg"
+        },
+        "state": "free"
+      },
+      {
+        "unit_code": "PC-B05",
+        "label": "B05 small room",
+        "kind": "small",
+        "dimensions": {
+          "area_sqm": "4,2"
+        },
+        "price": {
+          "amount": "72,50",
+          "currency": "USD"
+        },
+        "location": {
+          "district": "Hillcrest"
+        },
+        "features": {
+          "climate": "yes"
+        },
+        "media": {
+          "main": "https://images.example.com/larkspur/pc-b05.jpg"
+        },
+        "state": "reserved"
+      },
+      {
+        "unit_code": "PC-C11",
+        "label": "C11 medium room",
+        "kind": "medium",
+        "dimensions": {
+          "area_sqm": "8,6"
+        },
+        "price": {
+          "amount": "128,00",
+          "currency": "USD"
+        },
+        "location": {
+          "district": "Hillcrest"
+        },
+        "features": {
+          "climate": "yes"
+        },
+        "media": {
+          "main": "https://images.example.com/larkspur/pc-c11.jpg"
+        },
+        "state": "free"
+      },
+      {
+        "unit_code": "PC-D02",
+        "label": "D02 large room",
+        "kind": "large",
+        "dimensions": {
+          "area_sqm": "16,0"
+        },
+        "price": {
+          "amount": "210,00",
+          "currency": "USD"
+        },
+        "location": {
+          "district": "Pine Hill"
+        },
+        "features": {
+          "climate": "no"
+        },
+        "media": {
+          "main": "https://images.example.com/larkspur/pc-d02.jpg"
+        },
+        "state": "free"
+      },
+      {
+        "unit_code": "PC-P07",
+        "label": "P07 indoor parking",
+        "kind": "parking",
+        "dimensions": {
+          "area_sqm": "13,5"
+        },
+        "price": {
+          "amount": "99,00",
+          "currency": "USD"
+        },
+        "location": {
+          "district": "Pine Hill"
+        },
+        "features": {
+          "climate": "no"
+        },
+        "media": {
+          "main": "https://images.example.com/larkspur/pc-p07.jpg"
+        },
+        "state": "free"
+      }
+    ]
+  }
+}

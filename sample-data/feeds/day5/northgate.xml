@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<feed operator="northgate">
+  <listing ref="NG-101">
+    <name>Locker 1A, ground floor</name>
+    <unitType>Locker</unitType>
+    <sizeSqm>1.5</sizeSqm>
+    <pricePerMonth>39.00</pricePerMonth>
+    <district>Riverside</district>
+    <climate>no</climate>
+    <photo>https://images.example.com/larkspur/ng-101.jpg</photo>
+    <availability>open</availability>
+  </listing>
+  <listing ref="NG-102">
+    <name>Small unit 2B</name>
+    <unitType>Small Unit</unitType>
+    <sizeSqm>4.5</sizeSqm>
+    <pricePerMonth>75.00</pricePerMonth>
+    <district>Riverside</district>
+    <climate>yes</climate>
+    <photo>https://images.example.com/larkspur/ng-102.jpg</photo>
+    <availability>open</availability>
+  </listing>
+  <listing ref="NG-103">
+    <name>Small unit 2C</name>
+    <unitType>Small Unit</unitType>
+    <sizeSqm>5</sizeSqm>
+    <pricePerMonth>92.00</pricePerMonth>
+    <district>Riverside</district>
+    <climate>yes</climate>
+    <photo>https://images.example.com/larkspur/ng-103.jpg</photo>
+    <availability>open</availability>
+  </listing>
+  <listing ref="NG-104">
+    <name>Medium unit 3A</name>
+    <unitType>Medium Unit</unitType>
+    <sizeSqm>9</sizeSqm>
+    <pricePerMonth>139.00</pricePerMonth>
+    <district>Old Town</district>
+    <climate>yes</climate>
+    <photo>https://images.example.com/larkspur/ng-104.jpg</photo>
+    <availability>open</availability>
+  </listing>
+</feed>

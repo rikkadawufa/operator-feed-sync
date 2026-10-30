@@ -1,0 +1,5 @@
+Run R2 (live)
+
+source      outcome              feedRows created updated unchanged closed reopened restored held rowErrors
+northgate   OK                         12       0       0        12      0        0        0    0         0
+quayside    OK                         10       0       0        10      0        0        0    0         0

@@ -1,0 +1,42 @@
+name: feed-sync-demo
+services:
+  n8n:
+    image: docker.n8n.io/n8nio/n8n:${N8N_VERSION:-stable}
+    restart: unless-stopped
+    ports:
+      # 5678-5680 are used by the other local demos; this one runs on 5681.
+      - "127.0.0.1:5681:5678"
+    environment:
+      - N8N_ENCRYPTION_KEY=${N8N_ENCRYPTION_KEY}
+      - GENERIC_TIMEZONE=${GENERIC_TIMEZONE:-Asia/Taipei}
+      - TZ=${GENERIC_TIMEZONE:-Asia/Taipei}
+      - WEBHOOK_URL=http://localhost:5681/
+      - N8N_DIAGNOSTICS_ENABLED=false
+      - N8N_BLOCK_ENV_ACCESS_IN_NODE=false
+      - NODE_FUNCTION_ALLOW_BUILTIN=fs,path,crypto
+      # Non-secret values only. The Airtable token lives in an n8n credential (scripts/n8n_setup.py).
+      - AIRTABLE_BASE_ID=${AIRTABLE_BASE_ID}
+      - SLACK_WEBHOOK_URL=${SLACK_WEBHOOK_URL}
+    volumes:
+      - n8n_data:/home/node/.n8n
+      - ./sources:/files/sources:ro
+      - ./workflows:/files/workflows:ro
+      - ./output:/files/output
+    depends_on:
+      - feeds
+
+  # The operators' feed URLs, simulated. Uses the n8n image only because it already has Node.
+  feeds:
+    image: docker.n8n.io/n8nio/n8n:${N8N_VERSION:-stable}
+    restart: unless-stopped
+    entrypoint: ["node", "/srv/server.js"]
+    environment:
+      - FEEDS_DIR=/srv/feeds
+    ports:
+      - "127.0.0.1:8081:8080"
+    volumes:
+      - ./feed-server/server.js:/srv/server.js:ro
+      - ./sample-data/feeds:/srv/feeds:ro
+
+volumes:
+  n8n_data:

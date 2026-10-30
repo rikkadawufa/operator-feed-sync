@@ -1,0 +1,11 @@
+Unit ID,Unit Name,Category,Size (sq ft),Monthly Rate,Neighborhood,Climate,Photo,Availability
+Q-01,"Locker 3, lower deck",XS,16,$29.00,Harbor,N,https://images.example.com/larkspur/q-01.jpg,Vacant
+Q-02,"Locker 4, lower deck",XS,16,$29.00,Harbor,N,https://images.example.com/larkspur/q-02.jpg,Vacant
+Q-03,"Unit 12, upper deck",S,50,$65.00,Harbor,Y,https://images.example.com/larkspur/q-03.jpg,Vacant
+Q-04,"Unit 14, upper deck",S,50,$65.00,Harbor,Y,https://images.example.com/larkspur/q-04.jpg,Vacant
+Q-05,Unit 21 (corner),M,100,$118.00,Dockside,Y,https://images.example.com/larkspur/q-05.jpg,Vacant
+Q-06,Unit 22,M,100,$112.00,Dockside,N,https://images.example.com/larkspur/q-06.jpg,Vacant
+Q-07,"Unit 30, roll-up door",L,200,$199.00,Dockside,N,https://images.example.com/larkspur/q-07.jpg,Vacant
+Q-08,"Unit 31, roll-up door",L,200,$199.00,Dockside,N,https://images.example.com/larkspur/q-08.jpg,Vacant
+Q-09,Outdoor bay B2,Parking,160,$85.00,Dockside,N,https://images.example.com/larkspur/q-09.jpg,Vacant
+Q-10,Outdoor bay B3,Parking,160,$85.00,Dockside,N,https://images.example.com/larkspur/q-10.jpg,Vacant

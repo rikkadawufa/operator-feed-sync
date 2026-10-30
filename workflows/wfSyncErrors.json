@@ -1,0 +1,97 @@
+{
+  "id": "wfSyncErrors",
+  "name": "Feed sync: error handler",
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "nodes": [
+    {
+      "id": "note-about",
+      "name": "About",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -80,
+        -60
+      ],
+      "parameters": {
+        "content": "## Error handler\nIf the feed sync itself fails (for example Airtable can't be read or written), Slack gets the node name and message, and the run stops before anything is guessed.",
+        "width": 900,
+        "height": 140,
+        "color": 1
+      }
+    },
+    {
+      "id": "error-trigger",
+      "name": "Error trigger",
+      "type": "n8n-nodes-base.errorTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        200
+      ],
+      "parameters": {}
+    },
+    {
+      "id": "format-alert",
+      "name": "Format alert",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        220,
+        200
+      ],
+      "parameters": {
+        "jsCode": "const e = $input.first().json;\nconst node = (e.execution && e.execution.lastNodeExecuted) || 'unknown node';\nconst message = String((e.execution && e.execution.error && e.execution.error.message) || 'no message').replace(/pat[A-Za-z0-9.]{20,}/g, '***').slice(0, 300);\nconst text = ':rotating_light: Feed sync stopped at \"' + node + '\": ' + message + '. No further sources were processed in this run.';\nconst fs = require('fs');\nfs.mkdirSync('/files/output', { recursive: true });\nfs.appendFileSync('/files/output/errors.jsonl', JSON.stringify({ ts: new Date().toISOString(), node, message }) + '\\n', 'utf8');\nreturn [{ json: { text } }];"
+      }
+    },
+    {
+      "id": "send-alert",
+      "name": "Send alert",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        440,
+        200
+      ],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000,
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.SLACK_WEBHOOK_URL }}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ text: $json.text }) }}",
+        "options": {}
+      }
+    }
+  ],
+  "connections": {
+    "Error trigger": {
+      "main": [
+        [
+          {
+            "node": "Format alert",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format alert": {
+      "main": [
+        [
+          {
+            "node": "Send alert",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "versionId": "1"
+}

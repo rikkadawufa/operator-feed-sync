@@ -1,0 +1,26 @@
+{
+  "id": "quayside",
+  "name": "Quayside Lockers",
+  "enabled": true,
+  "format": "csv",
+  "delimiter": ",",
+  "url": "http://feeds:8080/feeds/quayside",
+  "fields": {
+    "external_ref": "Unit ID",
+    "title": "Unit Name",
+    "unit_type": "Category",
+    "size": "Size (sq ft)",
+    "monthly_price": "Monthly Rate",
+    "area": "Neighborhood",
+    "climate_controlled": "Climate",
+    "image_url": "Photo",
+    "status": "Availability"
+  },
+  "units": { "size": "sqft" },
+  "values": {
+    "unit_type": { "XS": "locker", "S": "small", "M": "medium", "L": "large", "Parking": "parking" },
+    "status": { "Vacant": "available", "Occupied": "rented", "Off market": "withdrawn" },
+    "climate_controlled": { "Y": true, "N": false }
+  },
+  "safety": { "min_ratio": 0.5, "min_active": 5 }
+}

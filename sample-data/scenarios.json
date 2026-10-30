@@ -1,0 +1,110 @@
+{
+  "note": "Each step is one sync run. 'feeds' is what the operator URLs serve; 'expect' is checked by scripts/check_results.py against the workflow's own report and an Airtable snapshot taken after the run.",
+  "steps": [
+    {
+      "run": "R1", "title": "First sync",
+      "feeds": { "northgate": { "file": "day1/northgate.xml" }, "quayside": { "file": "day1/quayside.csv" } },
+      "sources": ["northgate", "quayside"],
+      "expect": {
+        "northgate": { "outcome": "OK", "created": 12 },
+        "quayside": { "outcome": "OK", "created": 10 },
+        "listings": { "total": 22 }
+      }
+    },
+    {
+      "run": "R2", "title": "Same feeds again",
+      "feeds": { "northgate": { "file": "day1/northgate.xml" }, "quayside": { "file": "day1/quayside.csv" } },
+      "sources": ["northgate", "quayside"],
+      "expect": {
+        "northgate": { "outcome": "OK", "created": 0, "updated": 0, "closed": 0, "unchanged": 12 },
+        "quayside": { "outcome": "OK", "created": 0, "updated": 0, "closed": 0, "unchanged": 10 },
+        "listings": { "total": 22 }
+      }
+    },
+    {
+      "run": "R3", "title": "Normal day: changes and three broken rows",
+      "feeds": { "northgate": { "file": "day3/northgate.xml" }, "quayside": { "file": "day3/quayside.csv" } },
+      "sources": ["northgate", "quayside"],
+      "expect": {
+        "northgate": { "outcome": "OK", "created": 1, "updated": 1, "closed": 2, "unchanged": 9 },
+        "quayside": { "outcome": "OK with row errors", "rowErrors": 4, "unchanged": 7, "closed": 0 },
+        "listings": {
+          "total": 23,
+          "status": { "northgate:NG-105": "Closed", "northgate:NG-108": "Closed", "quayside:Q-04": "Active", "quayside:Q-07": "Active", "quayside:Q-09": "Active" },
+          "fields": { "northgate:NG-103": { "Monthly price": 92 }, "northgate:NG-105": { "Close reason": "Rented" }, "northgate:NG-108": { "Close reason": "Missing from feed" } }
+        }
+      }
+    },
+    {
+      "run": "R4", "title": "Northgate feed is down",
+      "feeds": { "northgate": { "status": 503 }, "quayside": { "file": "day3/quayside.csv" } },
+      "sources": ["northgate", "quayside"],
+      "expect": {
+        "northgate": { "outcome": "Feed unavailable", "created": 0, "updated": 0, "closed": 0 },
+        "quayside": { "outcome": "OK with row errors", "unchanged": 7, "rowErrors": 4 },
+        "listings": { "total": 23, "activeBySource": { "northgate": 11 } }
+      }
+    },
+    {
+      "run": "R5", "title": "Northgate sends a partial file",
+      "feeds": { "northgate": { "file": "day5/northgate.xml" }, "quayside": { "file": "day3/quayside.csv" } },
+      "sources": ["northgate", "quayside"],
+      "expect": {
+        "northgate": { "outcome": "Removals held", "updated": 1, "held": 7, "closed": 0 },
+        "quayside": { "outcome": "OK with row errors", "unchanged": 7 },
+        "listings": { "total": 23, "status": { "northgate:NG-110": "Pending removal", "northgate:NG-102": "Active" }, "fields": { "northgate:NG-102": { "Monthly price": 75 } } }
+      }
+    },
+    {
+      "run": "R6", "title": "Full feeds again; NG-108 back on the market",
+      "feeds": { "northgate": { "file": "day6/northgate.xml" }, "quayside": { "file": "day6/quayside.csv" } },
+      "sources": ["northgate", "quayside"],
+      "expect": {
+        "northgate": { "outcome": "OK", "restored": 7, "reopened": 1, "unchanged": 5, "closed": 0, "created": 0 },
+        "quayside": { "outcome": "OK", "rowErrors": 0, "unchanged": 10 },
+        "listings": { "total": 23, "status": { "northgate:NG-108": "Active", "northgate:NG-110": "Active" } }
+      }
+    },
+    {
+      "run": "R7a", "title": "New operator, first-draft mapping, dry run",
+      "useDraft": "pinecrest",
+      "mode": "dry run",
+      "feeds": { "pinecrest": { "file": "day7/pinecrest.json" } },
+      "sources": ["pinecrest"],
+      "expect": {
+        "pinecrest": { "outcome": "OK with row errors", "rowErrors": 6 },
+        "listings": { "total": 23, "countBySource": { "pinecrest": 0 } }
+      }
+    },
+    {
+      "run": "R7b", "title": "Fixed mapping, dry run",
+      "mode": "dry run",
+      "feeds": { "pinecrest": { "file": "day7/pinecrest.json" } },
+      "sources": ["pinecrest"],
+      "expect": {
+        "pinecrest": { "outcome": "OK", "rowErrors": 0, "created": 5, "ignored": 1 },
+        "listings": { "total": 23, "countBySource": { "pinecrest": 0 } }
+      }
+    },
+    {
+      "run": "R7c", "title": "Fixed mapping, go live",
+      "feeds": { "pinecrest": { "file": "day7/pinecrest.json" } },
+      "sources": ["pinecrest"],
+      "expect": {
+        "pinecrest": { "outcome": "OK", "created": 5 },
+        "listings": { "total": 28, "countBySource": { "pinecrest": 5 } }
+      }
+    },
+    {
+      "run": "R8", "title": "Everything again: nothing should change",
+      "feeds": { "northgate": { "file": "day6/northgate.xml" }, "quayside": { "file": "day6/quayside.csv" }, "pinecrest": { "file": "day7/pinecrest.json" } },
+      "sources": ["northgate", "pinecrest", "quayside"],
+      "expect": {
+        "northgate": { "outcome": "OK", "created": 0, "updated": 0, "closed": 0, "unchanged": 13 },
+        "quayside": { "outcome": "OK", "created": 0, "updated": 0, "closed": 0, "unchanged": 10 },
+        "pinecrest": { "outcome": "OK", "created": 0, "updated": 0, "closed": 0, "unchanged": 5 },
+        "listings": { "total": 28 }
+      }
+    }
+  ]
+}
