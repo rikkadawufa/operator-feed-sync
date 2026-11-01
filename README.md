@@ -12,6 +12,8 @@ A marketplace lists storage units from several operators. Each operator publishe
 - If a feed suddenly has far fewer rows than what is live, updates still go through, but removals are held as Pending removal and Slack gets an alert.
 - Adding an operator means adding one mapping file in `sources/` and checking it with a dry run. The workflow itself stays the same.
 
+There is also an n8n Cloud version in `workflows-cloud/`: the same sync rules, with mappings kept in an Airtable table instead of files. It passed the same 105 checks on an n8n Cloud trial instance. Setup: [docs/SETUP-CLOUD.md](docs/SETUP-CLOUD.md).
+
 ## What was run
 
 Ten runs (R1 to R8, including two dry runs) against a real Airtable base, with Slack alerts. Each run's result is compared with the expected numbers in `sample-data/scenarios.json`, and all 105 of 105 checks pass. Each run's report and the checker output are in [results/](results/README.md); notes on what was and wasn't tested are in [docs/VERIFICATION.md](docs/VERIFICATION.md).

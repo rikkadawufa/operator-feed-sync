@@ -1,0 +1,107 @@
+PASS  R1 northgate outcome: expected OK, got OK
+PASS  R1 northgate created: expected 12, got 12
+PASS  R1 quayside outcome: expected OK, got OK
+PASS  R1 quayside created: expected 10, got 10
+PASS  R1 listings total: expected 22, got 22
+PASS  R1 no duplicate listing keys (22 rows, 22 unique)
+PASS  R2 northgate outcome: expected OK, got OK
+PASS  R2 northgate created: expected 0, got 0
+PASS  R2 northgate updated: expected 0, got 0
+PASS  R2 northgate closed: expected 0, got 0
+PASS  R2 northgate unchanged: expected 12, got 12
+PASS  R2 quayside outcome: expected OK, got OK
+PASS  R2 quayside created: expected 0, got 0
+PASS  R2 quayside updated: expected 0, got 0
+PASS  R2 quayside closed: expected 0, got 0
+PASS  R2 quayside unchanged: expected 10, got 10
+PASS  R2 listings total: expected 22, got 22
+PASS  R2 no duplicate listing keys (22 rows, 22 unique)
+PASS  R3 northgate outcome: expected OK, got OK
+PASS  R3 northgate created: expected 1, got 1
+PASS  R3 northgate updated: expected 1, got 1
+PASS  R3 northgate closed: expected 2, got 2
+PASS  R3 northgate unchanged: expected 9, got 9
+PASS  R3 quayside outcome: expected OK with row errors, got OK with row errors
+PASS  R3 quayside rowErrors: expected 4, got 4
+PASS  R3 quayside unchanged: expected 7, got 7
+PASS  R3 quayside closed: expected 0, got 0
+PASS  R3 listings total: expected 23, got 23
+PASS  R3 northgate:NG-105 status: expected Closed, got Closed
+PASS  R3 northgate:NG-108 status: expected Closed, got Closed
+PASS  R3 quayside:Q-04 status: expected Active, got Active
+PASS  R3 quayside:Q-07 status: expected Active, got Active
+PASS  R3 quayside:Q-09 status: expected Active, got Active
+PASS  R3 northgate:NG-103 Monthly price: expected 92, got 92
+PASS  R3 northgate:NG-105 Close reason: expected Rented, got Rented
+PASS  R3 northgate:NG-108 Close reason: expected Missing from feed, got Missing from feed
+PASS  R3 no duplicate listing keys (23 rows, 23 unique)
+PASS  R4 northgate outcome: expected Feed unavailable, got Feed unavailable
+PASS  R4 northgate created: expected 0, got 0
+PASS  R4 northgate updated: expected 0, got 0
+PASS  R4 northgate closed: expected 0, got 0
+PASS  R4 quayside outcome: expected OK with row errors, got OK with row errors
+PASS  R4 quayside unchanged: expected 7, got 7
+PASS  R4 quayside rowErrors: expected 4, got 4
+PASS  R4 listings total: expected 23, got 23
+PASS  R4 northgate active listings: expected 11, got 11
+PASS  R4 no duplicate listing keys (23 rows, 23 unique)
+PASS  R5 northgate outcome: expected Removals held, got Removals held
+PASS  R5 northgate updated: expected 1, got 1
+PASS  R5 northgate held: expected 7, got 7
+PASS  R5 northgate closed: expected 0, got 0
+PASS  R5 quayside outcome: expected OK with row errors, got OK with row errors
+PASS  R5 quayside unchanged: expected 7, got 7
+PASS  R5 listings total: expected 23, got 23
+PASS  R5 northgate:NG-110 status: expected Pending removal, got Pending removal
+PASS  R5 northgate:NG-102 status: expected Active, got Active
+PASS  R5 northgate:NG-102 Monthly price: expected 75, got 75
+PASS  R5 no duplicate listing keys (23 rows, 23 unique)
+PASS  R6 northgate outcome: expected OK, got OK
+PASS  R6 northgate restored: expected 7, got 7
+PASS  R6 northgate reopened: expected 1, got 1
+PASS  R6 northgate unchanged: expected 5, got 5
+PASS  R6 northgate closed: expected 0, got 0
+PASS  R6 northgate created: expected 0, got 0
+PASS  R6 quayside outcome: expected OK, got OK
+PASS  R6 quayside rowErrors: expected 0, got 0
+PASS  R6 quayside unchanged: expected 10, got 10
+PASS  R6 listings total: expected 23, got 23
+PASS  R6 northgate:NG-108 status: expected Active, got Active
+PASS  R6 northgate:NG-110 status: expected Active, got Active
+PASS  R6 no duplicate listing keys (23 rows, 23 unique)
+PASS  R7a pinecrest outcome: expected OK with row errors, got OK with row errors
+PASS  R7a pinecrest rowErrors: expected 6, got 6
+PASS  R7a listings total: expected 23, got 23
+PASS  R7a pinecrest listings: expected 0, got 0
+PASS  R7a no duplicate listing keys (23 rows, 23 unique)
+PASS  R7b pinecrest outcome: expected OK, got OK
+PASS  R7b pinecrest rowErrors: expected 0, got 0
+PASS  R7b pinecrest created: expected 5, got 5
+PASS  R7b pinecrest ignored: expected 1, got 1
+PASS  R7b listings total: expected 23, got 23
+PASS  R7b pinecrest listings: expected 0, got 0
+PASS  R7b no duplicate listing keys (23 rows, 23 unique)
+PASS  R7c pinecrest outcome: expected OK, got OK
+PASS  R7c pinecrest created: expected 5, got 5
+PASS  R7c listings total: expected 28, got 28
+PASS  R7c pinecrest listings: expected 5, got 5
+PASS  R7c no duplicate listing keys (28 rows, 28 unique)
+PASS  R8 northgate outcome: expected OK, got OK
+PASS  R8 northgate created: expected 0, got 0
+PASS  R8 northgate updated: expected 0, got 0
+PASS  R8 northgate closed: expected 0, got 0
+PASS  R8 northgate unchanged: expected 13, got 13
+PASS  R8 quayside outcome: expected OK, got OK
+PASS  R8 quayside created: expected 0, got 0
+PASS  R8 quayside updated: expected 0, got 0
+PASS  R8 quayside closed: expected 0, got 0
+PASS  R8 quayside unchanged: expected 10, got 10
+PASS  R8 pinecrest outcome: expected OK, got OK
+PASS  R8 pinecrest created: expected 0, got 0
+PASS  R8 pinecrest updated: expected 0, got 0
+PASS  R8 pinecrest closed: expected 0, got 0
+PASS  R8 pinecrest unchanged: expected 5, got 5
+PASS  R8 listings total: expected 28, got 28
+PASS  R8 no duplicate listing keys (28 rows, 28 unique)
+
+105 of 105 checks passed

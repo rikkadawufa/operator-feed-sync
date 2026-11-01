@@ -1,0 +1,6 @@
+Run R4 (live)
+
+source      outcome              feedRows created updated unchanged closed reopened restored held rowErrors
+northgate   Feed unavailable            0       0       0         0      0        0        0    0         0
+quayside    OK with row errors         11       0       0         7      0        0        0    0         4
+  northgate: feed answered HTTP 503. Nothing was changed for northgate; listings stay as they were.

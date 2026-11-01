@@ -1,0 +1,5 @@
+Run R7a (dry run)
+
+source      outcome              feedRows created updated unchanged closed reopened restored held rowErrors
+pinecrest   OK with row errors          6       0       0         0      0        0        0    0         6
+  pinecrest: dry run: 0 write(s) planned, none made

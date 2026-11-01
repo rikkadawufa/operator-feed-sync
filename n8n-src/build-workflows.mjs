@@ -179,4 +179,4 @@ if (fileURLToPath(import.meta.url) === resolve(process.argv[1])) {
   const built = buildWorkflows();
   console.log(`Wrote ${built.length} workflows: ${built.map((item) => item.id).join(', ')}`);
 }
-export { buildWorkflows };
+export { buildWorkflows, CREDS, id, stableUuid, at, edge, note, source, code, ifNode, greater, airtableAuth };

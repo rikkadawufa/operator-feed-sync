@@ -4,6 +4,7 @@ Reads the workflow's own reports (output/runs/<run>/report.json) and the Airtabl
 snapshot taken after each run (output/snapshots/<run>.json). Prints one line per check
 and exits 1 if any fail. Also checks that no Listing key appears twice in any snapshot.
 """
+import argparse
 import json
 import sys
 
@@ -15,10 +16,10 @@ except ImportError:
 SCENARIOS = json.loads((ROOT / "sample-data" / "scenarios.json").read_text(encoding="utf-8"))["steps"]
 
 
-def check_step(step):
+def check_step(step, out):
     results = []
-    report_file = ROOT / "output" / "runs" / step["run"] / "report.json"
-    snap_file = ROOT / "output" / "snapshots" / f"{step['run']}.json"
+    report_file = out / "runs" / step["run"] / "report.json"
+    snap_file = out / "snapshots" / f"{step['run']}.json"
     if not report_file.exists() or not snap_file.exists():
         return [(False, f"{step['run']}: no report or snapshot (not run yet?)")]
     report = {s["source"]: s for s in json.loads(report_file.read_text(encoding="utf-8"))["sources"]}
@@ -58,10 +59,13 @@ def check_step(step):
 
 
 def main():
+    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser.add_argument("--out", default="output", help="results folder, relative to the demo (default: output)")
+    out = ROOT / parser.parse_args().out
     failed = 0
     total = 0
     for step in SCENARIOS:
-        for ok, message in check_step(step):
+        for ok, message in check_step(step, out):
             total += 1
             failed += not ok
             print(f"{'PASS' if ok else 'FAIL'}  {message}")

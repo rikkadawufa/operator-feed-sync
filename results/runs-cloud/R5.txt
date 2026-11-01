@@ -1,0 +1,6 @@
+Run R5 (live)
+
+source      outcome              feedRows created updated unchanged closed reopened restored held rowErrors
+northgate   Removals held               4       0       1         3      0        0        0    7         0
+quayside    OK with row errors         11       0       0         7      0        0        0    0         4
+  northgate: feed has 4 rows but 11 listings are live (below 50%). 7 missing listings marked Pending removal, not closed

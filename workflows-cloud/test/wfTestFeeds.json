@@ -1,0 +1,210 @@
+{
+  "id": "wfTestFeeds",
+  "name": "Feed sync (Cloud): test feeds",
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "nodes": [
+    {
+      "id": "note-about",
+      "name": "About",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -80,
+        -120
+      ],
+      "parameters": {
+        "content": "## Test feeds (testing only)\nServes the simulated supplier feeds for `scripts/run_scenarios.py --cloud --feeds-table`. The runner writes what each feed answers today into the **Test Feeds** table before each run. Not part of the delivered sync.",
+        "width": 760,
+        "height": 160,
+        "color": 3
+      }
+    },
+    {
+      "id": "feed-url",
+      "name": "Feed URL",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        100
+      ],
+      "webhookId": "05c51220-69dd-1885-b2a2-1b66d7b9b833",
+      "parameters": {
+        "httpMethod": "GET",
+        "path": "feeds/:source",
+        "responseMode": "responseNode",
+        "options": {}
+      }
+    },
+    {
+      "id": "settings",
+      "name": "Settings",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        220,
+        100
+      ],
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "settings-airtablebaseid",
+              "name": "airtableBaseId",
+              "value": "appXXXXXXXXXXXXXX",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "read-test-feed",
+      "name": "Read test feed",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        440,
+        100
+      ],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000,
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "airtableTokenCred01",
+          "name": "Airtable (demo base)"
+        }
+      },
+      "alwaysOutputData": true,
+      "parameters": {
+        "method": "GET",
+        "url": "={{ 'https://api.airtable.com/v0/' + $('Settings').first().json.airtableBaseId + '/Test%20Feeds' }}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "airtableTokenApi",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "filterByFormula",
+              "value": "={{ \"{Source}='\" + $('Feed URL').first().json.params.source + \"'\" }}"
+            },
+            {
+              "name": "pageSize",
+              "value": "100"
+            }
+          ]
+        },
+        "options": {
+          "pagination": {
+            "pagination": {
+              "parameters": {
+                "parameters": [
+                  {
+                    "type": "qs",
+                    "name": "offset",
+                    "value": "={{ $response.body.offset }}"
+                  }
+                ]
+              },
+              "paginationCompleteWhen": "other",
+              "completeExpression": "={{ !$response.body.offset }}",
+              "limitPagesFetched": true,
+              "maxRequests": 50
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "pick-answer",
+      "name": "Pick answer",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        660,
+        100
+      ],
+      "parameters": {
+        "jsCode": "const record = $input.all().flatMap((item) => item.json.records || [])[0];\nif (!record) return [{ json: { status: 404, type: 'text/plain', body: 'Unknown feed' } }];\nreturn [{ json: { status: record.fields.Status || 200, type: record.fields['Content type'] || 'text/plain', body: record.fields.Body || '' } }];"
+      }
+    },
+    {
+      "id": "answer",
+      "name": "Answer",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        880,
+        100
+      ],
+      "parameters": {
+        "respondWith": "text",
+        "responseBody": "={{ $json.body }}",
+        "options": {
+          "responseCode": "={{ $json.status }}",
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Content-Type",
+                "value": "={{ $json.type }}"
+              }
+            ]
+          }
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Feed URL": {
+      "main": [
+        [
+          {
+            "node": "Settings",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Settings": {
+      "main": [
+        [
+          {
+            "node": "Read test feed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read test feed": {
+      "main": [
+        [
+          {
+            "node": "Pick answer",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Pick answer": {
+      "main": [
+        [
+          {
+            "node": "Answer",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "versionId": "1"
+}

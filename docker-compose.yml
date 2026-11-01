@@ -25,6 +25,25 @@ services:
     depends_on:
       - feeds
 
+  # Stand-in for n8n Cloud: default Code-node limits (no require, no $env) and no file mounts
+  # the workflow could use. Only started with: docker compose --profile cloudsim up -d
+  n8n-cloudsim:
+    image: docker.n8n.io/n8nio/n8n:${N8N_VERSION:-stable}
+    profiles: ["cloudsim"]
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:5682:5678"
+    environment:
+      - N8N_ENCRYPTION_KEY=${N8N_ENCRYPTION_KEY}
+      - GENERIC_TIMEZONE=${GENERIC_TIMEZONE:-Asia/Taipei}
+      - TZ=${GENERIC_TIMEZONE:-Asia/Taipei}
+      - WEBHOOK_URL=http://localhost:5682/
+      - N8N_DIAGNOSTICS_ENABLED=false
+    volumes:
+      - n8n_cloudsim_data:/home/node/.n8n
+    depends_on:
+      - feeds
+
   # The operators' feed URLs, simulated. Uses the n8n image only because it already has Node.
   feeds:
     image: docker.n8n.io/n8nio/n8n:${N8N_VERSION:-stable}
@@ -40,3 +59,4 @@ services:
 
 volumes:
   n8n_data:
+  n8n_cloudsim_data:

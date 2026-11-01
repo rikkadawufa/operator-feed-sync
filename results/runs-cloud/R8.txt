@@ -1,0 +1,7 @@
+Run R8 (live)
+
+source      outcome              feedRows created updated unchanged closed reopened restored held rowErrors
+northgate   OK                         13       0       0        13      0        0        0    0         0
+pinecrest   OK                          6       0       0         5      0        0        0    0         0
+quayside    OK                         10       0       0        10      0        0        0    0         0
+  pinecrest: 1 new row(s) not available yet, so not listed

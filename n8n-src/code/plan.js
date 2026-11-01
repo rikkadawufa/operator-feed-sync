@@ -12,7 +12,31 @@ function listingKey(sourceId, ref) {
 function contentHash(listing) {
   const ordered = ['external_ref', 'title', 'unit_type', 'size_m2', 'monthly_price', 'area', 'climate_controlled', 'image_url', 'status'];
   const payload = JSON.stringify(ordered.map((name) => listing[name]));
-  return require('crypto').createHash('sha1').update(payload).digest('hex').slice(0, 16);
+  return sha1Hex(payload).slice(0, 16);
+}
+
+// Plain-JS SHA-1 (same output as crypto's) so the Code node needs no require(); n8n Cloud allows none.
+function sha1Hex(text) {
+  const bytes = Array.from(unescape(encodeURIComponent(text)), (c) => c.charCodeAt(0));
+  const bitLength = bytes.length * 8;
+  bytes.push(0x80);
+  while (bytes.length % 64 !== 56) bytes.push(0);
+  for (let shift = 56; shift >= 0; shift -= 8) bytes.push(Math.floor(bitLength / 2 ** shift) & 0xff);
+  const rotl = (n, s) => (n << s) | (n >>> (32 - s));
+  let [h0, h1, h2, h3, h4] = [0x67452301, 0xefcdab89, 0x98badcfe, 0x10325476, 0xc3d2e1f0];
+  const w = new Array(80);
+  for (let offset = 0; offset < bytes.length; offset += 64) {
+    for (let i = 0; i < 16; i++) w[i] = (bytes[offset + i * 4] << 24) | (bytes[offset + i * 4 + 1] << 16) | (bytes[offset + i * 4 + 2] << 8) | bytes[offset + i * 4 + 3];
+    for (let i = 16; i < 80; i++) w[i] = rotl(w[i - 3] ^ w[i - 8] ^ w[i - 14] ^ w[i - 16], 1);
+    let [a, b, c, d, e] = [h0, h1, h2, h3, h4];
+    for (let i = 0; i < 80; i++) {
+      const [f, k] = i < 20 ? [(b & c) | (~b & d), 0x5a827999] : i < 40 ? [b ^ c ^ d, 0x6ed9eba1] : i < 60 ? [(b & c) | (b & d) | (c & d), 0x8f1bbcdc] : [b ^ c ^ d, 0xca62c1d6];
+      const t = (rotl(a, 5) + f + e + k + w[i]) | 0;
+      [e, d, c, b, a] = [d, c, rotl(b, 30), a, t];
+    }
+    [h0, h1, h2, h3, h4] = [(h0 + a) | 0, (h1 + b) | 0, (h2 + c) | 0, (h3 + d) | 0, (h4 + e) | 0];
+  }
+  return [h0, h1, h2, h3, h4].map((h) => (h >>> 0).toString(16).padStart(8, '0')).join('');
 }
 
 function emptySummary(feedRows = 0) {
@@ -33,7 +57,7 @@ function planSync({ source, fetchResult, existing, runId, mode = 'live' }) {
   const configIssues = checkSource(source);
   if (configIssues.length) {
     result.outcome = 'Mapping file error';
-    result.notes.push(`sources/${source.id}.json: ${configIssues.join('; ')}`);
+    result.notes.push(`${source.configLabel || `sources/${source.id}.json`}: ${configIssues.join('; ')}`);
     result.alerts.push(`:warning: ${source.name}: mapping file has problems, source skipped: ${configIssues.join('; ')}`);
     return result;
   }
@@ -164,4 +188,4 @@ function chunk(list, size = 10) {
   return out;
 }
 
-if (typeof module !== 'undefined') module.exports = { listingKey, contentHash, planSync, runRecords, chunk };
+if (typeof module !== 'undefined') module.exports = { listingKey, contentHash, sha1Hex, planSync, runRecords, chunk };

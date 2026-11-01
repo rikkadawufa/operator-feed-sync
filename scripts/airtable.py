@@ -52,6 +52,11 @@ class Airtable:
             if not offset:
                 return out
 
+    def upsert(self, table, merge_on, records):
+        for start in range(0, len(records), 10):
+            self._request("PATCH", table, body={"performUpsert": {"fieldsToMergeOn": [merge_on]}, "typecast": True,
+                                                "records": [{"fields": fields} for fields in records[start:start + 10]]})
+
     def clear(self, table):
         ids = [record["id"] for record in self.records(table)]
         for start in range(0, len(ids), 10):
