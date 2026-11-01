@@ -31,7 +31,7 @@ Ten runs (R1 to R8, including two dry runs) against a real Airtable base, with S
 
 ## How it works
 
-`n8n-src/code/` holds the sync rules as plain JavaScript with unit tests (`node --test n8n-src/code/*.test.js`, 13 tests). `n8n-src/build-workflows.mjs` puts that code into the n8n workflow files in `workflows/`.
+`n8n-src/code/` holds the sync rules as plain JavaScript with unit tests (`node --test n8n-src/code/sync.test.js`, 14 tests). `n8n-src/build-workflows.mjs` puts that code into the n8n workflow files in `workflows/`.
 
 The workflow handles one operator at a time:
 

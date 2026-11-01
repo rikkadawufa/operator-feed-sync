@@ -19,7 +19,7 @@
 
 ## Held removals
 
-A listing in Pending removal stays visible and isn't closed. On the next run, held listings that are back in a complete feed return to Active and are counted as `restored`.
+A listing in Pending removal stays visible and isn't closed. On the next run, held listings that are back in the feed return to Active and are counted as `restored`. Held listings still missing from a later feed stay in Pending removal, even when that feed is big enough for normal closing: the sync never closes them on its own, and the run notes say how many are still waiting.
 
 If the operator really did remove those units, close them by hand in Airtable: set Status to `Closed` and Close reason to `Missing from feed`. The demo has no one-click release.
 

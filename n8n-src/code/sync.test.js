@@ -127,6 +127,22 @@ test('feed shrinks: updates applied, removals held, then restored', () => {
   assert.equal(table.filter((r) => r.fields.Source === 'northgate').length, 13);
 });
 
+test('held listings stay held when a later feed is big enough to close', () => {
+  const table = [];
+  run(table, 'northgate', feed('day1/northgate.xml'), 'R1');
+  run(table, 'northgate', feed('day3/northgate.xml'), 'R3');
+  run(table, 'northgate', feed('day5/northgate.xml'), 'R5');
+  const held = table.filter((r) => r.fields.Status === 'Pending removal').map((r) => r.fields['External ref']);
+  const live = table.filter((r) => r.fields.Source === 'northgate' && ['Active', 'Pending removal'].includes(r.fields.Status)).length;
+  // A feed with every Active ref plus enough held ones to pass the half-of-live check.
+  const keep = new Set([...table.filter((r) => r.fields.Status === 'Active').map((r) => r.fields['External ref']), ...held.slice(0, Math.ceil(live / 2))]);
+  const body = feed('day6/northgate.xml').replace(/\s*<listing ref="([^"]+)">[\s\S]*?<\/listing>/g, (m, ref) => (keep.has(ref) ? m : ''));
+  const next = run(table, 'northgate', body, 'R5b');
+  assert.equal(next.outcome === 'Removals held', false);
+  assert.equal(next.summary.closed, 0);
+  for (const ref of held.slice(Math.ceil(live / 2))) assert.equal(status(table, listingKey('northgate', ref)), 'Pending removal');
+});
+
 test('new source: draft mapping fails the dry run, fixed one passes', () => {
   const draft = JSON.parse(readFileSync(join(demo, 'sample-data', 'onboarding', 'pinecrest.first-draft.json'), 'utf8'));
   const body = feed('day7/pinecrest.json');

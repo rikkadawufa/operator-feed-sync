@@ -148,9 +148,16 @@ function planSync({ source, fetchResult, existing, runId, mode = 'live' }) {
     result.notes.push(note);
     result.alerts.push(`:warning: ${source.name}: ${note}. Check the feed before releasing them.`);
   } else {
+    // A held listing only closes when a person closes it, even after the feed recovers.
+    const stillHeld = missing.filter((record) => record.fields.Status === 'Pending removal');
     for (const record of missing) {
+      if (record.fields.Status === 'Pending removal') continue;
       result.writes.push({ 'Listing key': record.fields['Listing key'], Status: 'Closed', 'Close reason': 'Missing from feed', 'Last changed run': runId });
       result.summary.closed += 1;
+    }
+    if (stillHeld.length) {
+      result.summary.held += stillHeld.length;
+      result.notes.push(`${stillHeld.length} listing(s) still Pending removal, waiting for a person to close them`);
     }
   }
 
