@@ -1,4 +1,4 @@
-// node --test n8n-src/code
+// node --test n8n-src/code/sync.test.js
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { readFileSync } = require('node:fs');
@@ -113,6 +113,150 @@ test('feed down: nothing closed', () => {
   assert.ok(table.every((r) => r.fields.Status === 'Active'));
 });
 
+// quayside day1: 10 live listings, Q-01 to Q-10, one line each.
+const quayLines = () => feed('day1/quayside.csv').trim().split(/\r?\n/);
+const quayFeed = (pick) => { const [header, ...lines] = quayLines(); return [header, ...pick(lines)].join('\n'); };
+const startQuay = () => { const table = []; run(table, 'quayside', feed('day1/quayside.csv'), 'R1'); return table; };
+
+test('an HTML page is refused for CSV, JSON and XML sources', () => {
+  const page = ['<!DOCTYPE html>', '<html><head><title>502 Bad Gateway</title></head>', '<body><p>upstream error</p></body></html>'].join('\n');
+  const table = startQuay();
+  const csv = run(table, 'quayside', ok('﻿\n  ' + page), 'H1');
+  assert.equal(csv.outcome, 'Feed unavailable');
+  assert.equal(csv.writes.length, 0);
+  assert.match(csv.notes[0], /^feed is an HTML page, not CSV\./);
+  const json = planSync({ source: source('pinecrest'), fetchResult: ok('<HTML lang="en"><body>Sign in</body></HTML>'), existing: [], runId: 'H2' });
+  assert.match(json.notes[0], /^feed is an HTML page, not JSON\./);
+  const xml = planSync({ source: source('northgate'), fetchResult: ok('<?xml version="1.0"?>\n' + page), existing: [], runId: 'H3' });
+  assert.match(xml.notes[0], /^feed is an HTML page, not XML\./);
+  // A real XML feed also starts with "<", and a CSV header may start with a letter after "<".
+  assert.equal(isHtmlPage(feed('day1/northgate.xml'), 'xml'), false);
+  assert.equal(isHtmlPage('<body>x</body>', 'xml'), false);
+  assert.equal(isHtmlPage('<ab>,c\n1,2', 'csv'), false);
+  assert.equal(isHtmlPage('<!-- maintenance -->', 'json'), true);
+  assert.ok(table.every((r) => r.fields.Status === 'Active'));
+});
+
+test('the ref column missing from the feed is named, with the columns the feed has', () => {
+  const table = startQuay();
+  const renamed = run(table, 'quayside', feed('day1/quayside.csv').replace('Unit ID', 'Unit Code'), 'M1');
+  assert.equal(renamed.outcome, 'Feed unavailable');
+  assert.equal(renamed.writes.length, 0);
+  assert.match(renamed.notes[0], /^mapping field "Unit ID" is not in the feed; the feed has: Unit Code, Unit Name, Category, Size \(sq ft\), Monthly Rate, Neighborhood, Climate, Photo, Availability\./);
+  // Wrong delimiter: the whole header is one column.
+  const semicolons = run(table, 'quayside', quayFeed((lines) => lines).replace(/,/g, ';'), 'M2');
+  assert.match(semicolons.notes[0], /mapping field "Unit ID" is not in the feed; the feed has: Unit ID;Unit Name;/);
+  const xml = planSync({ source: source('northgate'), fetchResult: ok(feed('day1/northgate.xml').replace(/<listing ref=/g, '<listing id=')), existing: [], runId: 'M3' });
+  assert.match(xml.notes[0], /^mapping field "ref" is not in the feed; the feed has: id, name, unitType, /);
+  const wide = planSync({ source: source('quayside'), fetchResult: ok(Array.from({ length: 12 }, (_, i) => `c${i}`).join(',') + '\n' + '1,'.repeat(11) + '1'), existing: [], runId: 'M4' });
+  assert.match(wide.notes[0],/the feed has: c0, c1, c2, c3, c4, c5, c6, c7, c8, c9, …\./);
+  assert.ok(table.every((r) => r.fields.Status === 'Active'));
+});
+
+test('a ref column with no values stops the feed', () => {
+  const table = startQuay();
+  const blank = run(table, 'quayside', quayFeed((lines) => lines.map((line) => line.replace(/^Q-\d+/, ''))), 'E1');
+  assert.equal(blank.outcome, 'Feed unavailable');
+  assert.equal(blank.writes.length, 0);
+  assert.match(blank.notes[0], /^no row has a value in "Unit ID"\./);
+  assert.equal(blank.alerts.length, 1);
+  assert.ok(table.every((r) => r.fields.Status === 'Active'));
+});
+
+test('a dry run that stops sends no alert but keeps the note', () => {
+  const table = startQuay();
+  const dry = run(table, 'quayside', ok('<html><body>Not found</body></html>'), 'D1', { mode: 'dry run' });
+  assert.equal(dry.outcome, 'Feed unavailable');
+  assert.equal(dry.alerts.length, 0);
+  assert.equal(dry.notes.length, 1);
+  const down = run(table, 'quayside', { statusCode: 500, body: '' }, 'D2', { mode: 'dry run' });
+  assert.deepEqual([down.outcome, down.alerts.length], ['Feed unavailable', 0]);
+});
+
+test('duplicate refs cannot make a short feed pass the half-of-live check', () => {
+  const table = startQuay();
+  // 6 rows, but only 3 distinct refs: 7 of 10 live listings would close.
+  const padded = run(table, 'quayside', quayFeed((lines) => [...lines.slice(0, 3), ...lines.slice(0, 3)]), 'P1');
+  assert.equal(padded.outcome, 'Removals held');
+  assert.deepEqual([padded.summary.closed, padded.summary.held], [0, 7]);
+  assert.match(padded.notes.join(' '), /7 of 10 live listings are missing from the feed \(only 3 still in it, below 50%\)/);
+  assert.equal(status(table, 'quayside:Q-04'), 'Pending removal');
+  assert.equal(status(table, 'quayside:Q-01'), 'Active');
+});
+
+test('closing exactly half is allowed, one more is held', () => {
+  const half = startQuay();
+  const five = run(half, 'quayside', quayFeed((lines) => lines.slice(0, 5)), 'B1');
+  assert.deepEqual([five.outcome, five.summary.closed, five.summary.held], ['OK', 5, 0]);
+  const more = startQuay();
+  const six = run(more, 'quayside', quayFeed((lines) => lines.slice(0, 4)), 'B2');
+  assert.deepEqual([six.outcome, six.summary.closed, six.summary.held], ['Removals held', 0, 6]);
+});
+
+test('new IDs for most listings: nothing created or closed, matching ones still updated', () => {
+  const table = startQuay();
+  const body = quayFeed((lines) => lines.map((line, i) => (i < 2 ? line : line.replace(/^Q-(\d+)/, 'QS-$1'))).map((line) => line.replace('Locker 3, lower deck",XS,16,$29.00', 'Locker 3, lower deck",XS,16,$31.00')));
+  const renumbered = run(table, 'quayside', body, 'I1');
+  assert.equal(renumbered.outcome, 'IDs look changed');
+  assert.deepEqual([renumbered.summary.created, renumbered.summary.closed, renumbered.summary.updated, renumbered.summary.held], [0, 0, 1, 0]);
+  assert.equal(renumbered.writes.length, 1);
+  assert.equal(renumbered.notes[0], '8 of 10 live listings are missing from the feed and 8 refs in it are new. No new listings were created and no missing listing was closed; matching listings were updated');
+  assert.match(renumbered.alerts[0], /8 old IDs are missing and 8 new IDs appeared\. Check whether the supplier changed its item IDs/);
+  assert.equal(table.length, 10);
+  assert.ok(table.every((r) => r.fields.Status === 'Active'));
+  // Every ID replaced, same count.
+  const all = run(table, 'quayside', quayFeed((lines) => lines.map((line) => line.replace(/^Q-(\d+)/, 'QS-$1'))), 'I2');
+  assert.deepEqual([all.outcome, all.summary.created, all.summary.closed, all.writes.length], ['IDs look changed', 0, 0, 0]);
+});
+
+test('new IDs on broken rows still count, so no half of the new IDs is created', () => {
+  const table = startQuay();
+  // Every ID replaced, and 6 of the new rows have a price that can't be read.
+  const body = quayFeed((lines) => lines.map((line, i) => line.replace(/^Q-(\d+)/, 'QS-$1').replace(i < 6 ? /\$\d+\.\d+/ : /^$/, 'TBD')));
+  const plan = run(table, 'quayside', body, 'I3');
+  assert.equal(plan.summary.rowErrors, 6);
+  assert.deepEqual([plan.outcome, plan.summary.created, plan.summary.closed, plan.summary.held, plan.writes.length], ['IDs look changed', 0, 0, 0, 0]);
+  assert.match(plan.notes[0], /10 of 10 live listings are missing from the feed and 10 refs in it are new/);
+  assert.equal(table.length, 10);
+});
+
+test('IDs look changed still closes a matching unit the feed marks rented, and says so', () => {
+  const table = startQuay();
+  const body = quayFeed((lines) => lines.map((line, i) => (i === 0 ? line.replace(/Vacant$/, 'Occupied') : i < 2 ? line : line.replace(/^Q-(\d+)/, 'QS-$1'))));
+  const plan = run(table, 'quayside', body, 'I4');
+  assert.deepEqual([plan.outcome, plan.summary.created, plan.summary.closed], ['IDs look changed', 0, 1]);
+  assert.equal(plan.notes[0], '8 of 10 live listings are missing from the feed and 8 refs in it are new. No new listings were created and no missing listing was closed; matching listings were updated; 1 closed because the feed marks them rented or withdrawn');
+  assert.match(plan.alerts[0], /No new listings were created and no missing listing was closed this run\.$/);
+  assert.equal(status(table, 'quayside:Q-01'), 'Closed');
+  assert.equal(status(table, 'quayside:Q-03'), 'Active');
+});
+
+test('dry runs send no Slack alert for a bad mapping file either', () => {
+  const broken = { ...source('pinecrest'), values: { status: { free: 'open' } } };
+  const plan = planSync({ source: broken, fetchResult: ok(feed('day7/pinecrest.json')), existing: [], runId: 'X', mode: 'dry run' });
+  assert.deepEqual([plan.outcome, plan.alerts.length, plan.notes.length], ['Mapping file error', 0, 1]);
+  // A mapping that isn't valid JSON is handled in the workflow's Plan changes node, not in plan.js.
+  for (const file of ['workflows/wfFeedSync.json', 'workflows-cloud/wfFeedSyncCloud.json']) {
+    const node = JSON.parse(readFileSync(join(demo, file), 'utf8')).nodes.find((n) => n.name === 'Plan changes');
+    assert.match(node.parameters.jsCode, /brokenFile[\s\S]*alerts: job\.mode === 'dry run' \? \[\] : \[/);
+  }
+});
+
+test('the row errors alert lists a duplicate ref once', () => {
+  const table = startQuay();
+  const plan = run(table, 'quayside', feed('day3/quayside.csv'), 'R3');
+  // 4 bad rows, but the two copies of Q-09 give one line: 3 lines, nothing left out.
+  assert.match(plan.alerts[0], /4 row\(s\) skipped, the rest synced\. Q-04: missing price; Q-07: unknown unit type \("Jumbo"\); Q-09: same ref on rows 9 and 11 \("Q-09"\)$/);
+});
+
+test('a few renumbered units below the threshold are created and closed as usual', () => {
+  const table = startQuay();
+  const some = run(table, 'quayside', quayFeed((lines) => lines.map((line, i) => (i < 7 ? line : line.replace(/^Q-(\d+)/, 'QS-$1')))), 'S1');
+  assert.deepEqual([some.outcome, some.summary.created, some.summary.closed], ['OK', 3, 3]);
+  assert.equal(status(table, 'quayside:Q-10'), 'Closed');
+  assert.equal(status(table, 'quayside:QS-10'), 'Active');
+});
+
 test('feed shrinks: updates applied, removals held, then restored', () => {
   const table = [];
   run(table, 'northgate', feed('day1/northgate.xml'), 'R1');
@@ -120,6 +264,7 @@ test('feed shrinks: updates applied, removals held, then restored', () => {
   const r5 = run(table, 'northgate', feed('day5/northgate.xml'), 'R5');
   assert.equal(r5.outcome, 'Removals held');
   assert.deepEqual([r5.summary.updated, r5.summary.held, r5.summary.closed], [1, 7, 0]);
+  assert.equal(r5.notes[0], 'feed has 4 rows but 11 listings are live (below 50%). 7 missing listings marked Pending removal, not closed');
   assert.equal(status(table, 'northgate:NG-110'), 'Pending removal');
   const r6 = run(table, 'northgate', feed('day6/northgate.xml'), 'R6');
   assert.deepEqual([r6.summary.restored, r6.summary.reopened, r6.summary.closed, r6.summary.created], [7, 1, 0, 0]);

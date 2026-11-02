@@ -81,6 +81,21 @@ function parseJson(text, recordPath) {
   return { rows: list.map((raw, index) => ({ row: index + 1, raw: raw && typeof raw === 'object' ? raw : {} })) };
 }
 
+// An HTML page (a login wall, a 200 error page) served where a feed should be. Follows the HTML
+// patterns of the WHATWG MIME sniffing rules: after a BOM and leading whitespace, one of these
+// tags followed by a space or ">". XML feeds start with "<" too, so they only stop on <!DOCTYPE html or <html.
+const HTML_STARTS = ['!DOCTYPE HTML', 'HTML', 'HEAD', 'SCRIPT', 'IFRAME', 'H1', 'DIV', 'FONT', 'TABLE', 'A', 'STYLE', 'TITLE', 'B', 'BODY', 'BR', 'P'];
+
+function isHtmlPage(text, format) {
+  let start = String(text || '').replace(/^\uFEFF/, '').replace(/^[\t\n\f\r ]+/, '');
+  if (format === 'xml') {
+    start = start.replace(/^<\?xml[\s\S]*?\?>\s*/, '');
+    return /^<(!DOCTYPE\s+html|html)[\s>]/i.test(start);
+  }
+  if (start.startsWith('<!--')) return true;
+  return HTML_STARTS.some((tag) => start.toUpperCase().startsWith('<' + tag) && /^[\s>]/.test(start.slice(tag.length + 1)));
+}
+
 function parseFeed(text, source) {
   if (source.format === 'xml') return parseXml(text, source.record);
   if (source.format === 'csv') return parseCsv(text, source.delimiter || ',');
@@ -88,4 +103,4 @@ function parseFeed(text, source) {
   throw new FeedError(`unknown feed format "${source.format}"`);
 }
 
-if (typeof module !== 'undefined') module.exports = { FeedError, parseXml, parseCsv, parseJson, parseFeed, getPath };
+if (typeof module !== 'undefined') module.exports = { FeedError, parseXml, parseCsv, parseJson, parseFeed, getPath, isHtmlPage };

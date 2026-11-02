@@ -3,6 +3,8 @@
 
 const STATUS_FOR = { available: 'Active', rented: 'Closed', withdrawn: 'Closed' };
 const CLOSE_REASON_FOR = { rented: 'Rented', withdrawn: 'Withdrawn' };
+// min_ratio: share of live listings that must still be in the feed, or the missing ones are held
+// (0.5 = closing more than half is held). min_active: smaller sources are never held.
 const DEFAULT_SAFETY = { min_ratio: 0.5, min_active: 5 };
 
 function listingKey(sourceId, ref) {
@@ -43,6 +45,20 @@ function emptySummary(feedRows = 0) {
   return { feedRows, created: 0, updated: 0, unchanged: 0, closed: 0, reopened: 0, restored: 0, held: 0, rowErrors: 0, ignored: 0 };
 }
 
+// Why no row can name its listing: the mapped ref field isn't in the feed at all, or it is but is
+// always empty. Returns '' when at least one row has a ref.
+function refFieldIssue(parsed, refPath) {
+  const rows = parsed.rows.filter((entry) => !entry.shapeError);
+  const values = rows.map((entry) => getPath(entry.raw, refPath));
+  const present = parsed.headers ? parsed.headers.includes(refPath) : values.some((value) => value !== undefined);
+  if (!present) {
+    const names = parsed.headers || Object.keys((rows[0] || parsed.rows[0]).raw);
+    return `mapping field "${refPath}" is not in the feed; the feed has: ${names.slice(0, 10).join(', ')}${names.length > 10 ? ', …' : ''}`;
+  }
+  if (!values.some((value) => value != null && String(value).trim() !== '')) return `no row has a value in "${refPath}"`;
+  return '';
+}
+
 // fetchResult: { statusCode, body, error }  existing: [{ id, fields }] for this source only.
 function planSync({ source, fetchResult, existing, runId, mode = 'live' }) {
   const safety = { ...DEFAULT_SAFETY, ...(source.safety || {}) };
@@ -50,7 +66,7 @@ function planSync({ source, fetchResult, existing, runId, mode = 'live' }) {
   const stop = (reason) => {
     result.outcome = 'Feed unavailable';
     result.notes.push(`${reason}. Nothing was changed for ${source.id}; listings stay as they were.`);
-    result.alerts.push(`:warning: ${source.name}: feed not used this run (${reason}). No listings were closed.`);
+    if (mode !== 'dry run') result.alerts.push(`:warning: ${source.name}: feed not used this run (${reason}). No listings were closed.`);
     return result;
   };
 
@@ -58,12 +74,13 @@ function planSync({ source, fetchResult, existing, runId, mode = 'live' }) {
   if (configIssues.length) {
     result.outcome = 'Mapping file error';
     result.notes.push(`${source.configLabel || `sources/${source.id}.json`}: ${configIssues.join('; ')}`);
-    result.alerts.push(`:warning: ${source.name}: mapping file has problems, source skipped: ${configIssues.join('; ')}`);
+    if (mode !== 'dry run') result.alerts.push(`:warning: ${source.name}: mapping file has problems, source skipped: ${configIssues.join('; ')}`);
     return result;
   }
   if (fetchResult.error) return stop(`could not fetch feed: ${fetchResult.error}`);
   if (fetchResult.statusCode !== 200) return stop(`feed answered HTTP ${fetchResult.statusCode}`);
   if (!String(fetchResult.body || '').trim()) return stop('feed was empty');
+  if (isHtmlPage(fetchResult.body, source.format)) return stop(`feed is an HTML page, not ${source.format.toUpperCase()}`);
 
   let parsed;
   try {
@@ -75,6 +92,10 @@ function planSync({ source, fetchResult, existing, runId, mode = 'live' }) {
   const rows = parsed.rows;
   result.summary.feedRows = rows.length;
   if (!rows.length) return stop('feed had no records');
+  // Without the ref column the feed can't say which listings are still there (renamed column,
+  // wrong delimiter), so it is not used at all.
+  const refIssue = refFieldIssue(parsed, source.fields.external_ref);
+  if (refIssue) return stop(refIssue);
 
   // Map every row; collect problems per row.
   const mapped = rows.map((entry) => {
@@ -96,6 +117,7 @@ function planSync({ source, fetchResult, existing, runId, mode = 'live' }) {
 
   // A ref that is in the feed, even on a broken row, is not "missing".
   const seenRefs = new Set(mapped.map((item) => item.listing.external_ref).filter(Boolean));
+  const creates = new Set();
   const byKey = new Map(existing.map((record) => [record.fields['Listing key'], record]));
   const live = (record) => ['Active', 'Pending removal'].includes(record.fields.Status);
   const activeBefore = existing.filter(live).length;
@@ -122,7 +144,9 @@ function planSync({ source, fetchResult, existing, runId, mode = 'live' }) {
 
     if (!current) {
       if (status !== 'Active') { result.summary.ignored += 1; continue; }
-      result.writes.push({ ...fields, 'First seen run': runId });
+      const write = { ...fields, 'First seen run': runId };
+      result.writes.push(write);
+      creates.add(write);
       result.summary.created += 1;
       continue;
     }
@@ -135,16 +159,38 @@ function planSync({ source, fetchResult, existing, runId, mode = 'live' }) {
     else result.summary.updated += 1;
   }
 
-  // Listings the feed no longer has. If the feed suddenly shrank, hold instead of closing.
+  // Listings the feed no longer has (live, and their ref is on no row). If this run would close too
+  // many of them, hold instead of closing. safety.min_ratio is the share of live listings that must
+  // still be in the feed: with 0.5, closing more than half of them is held. Counting distinct refs
+  // means duplicate or unreadable rows can't make a short feed look full.
   const missing = existing.filter((record) => live(record) && !seenRefs.has(record.fields['External ref']));
-  const shrank = activeBefore >= safety.min_active && rows.length < safety.min_ratio * activeBefore;
-  if (missing.length && shrank) {
+  const stillThere = activeBefore - missing.length;
+  const percent = Math.round(safety.min_ratio * 100);
+  const tooMany = activeBefore >= safety.min_active && stillThere < safety.min_ratio * activeBefore;
+  // As many new refs as missing ones looks like the supplier renumbered its items: creating and
+  // closing would swap every listing for a copy, so this run only updates the listings that match.
+  // New refs on broken rows count too, or a renumbered feed with bad rows would slip through.
+  const newRefs = [...seenRefs].filter((ref) => !byKey.has(listingKey(source.id, ref)));
+  const idsChanged = tooMany && newRefs.length >= activeBefore - safety.min_ratio * activeBefore;
+  if (idsChanged) {
+    result.outcome = 'IDs look changed';
+    result.writes = result.writes.filter((write) => !creates.has(write));
+    result.summary.created = 0;
+    result.summary.held = missing.filter((record) => record.fields.Status === 'Pending removal').length;
+    const kept = 'No new listings were created and no missing listing was closed';
+    const closedByFeed = result.summary.closed ? `; ${result.summary.closed} closed because the feed marks them rented or withdrawn` : '';
+    result.notes.push(`${missing.length} of ${activeBefore} live listings are missing from the feed and ${newRefs.length} refs in it are new. ${kept}; matching listings were updated${closedByFeed}`);
+    result.alerts.push(`:warning: ${source.name}: ${missing.length} old IDs are missing and ${newRefs.length} new IDs appeared. Check whether the supplier changed its item IDs. ${kept} this run.`);
+  } else if (missing.length && tooMany) {
     result.outcome = 'Removals held';
     for (const record of missing) {
       if (record.fields.Status !== 'Pending removal') result.writes.push({ 'Listing key': record.fields['Listing key'], Status: 'Pending removal', 'Last changed run': runId });
       result.summary.held += 1;
     }
-    const note = `feed has ${rows.length} rows but ${activeBefore} listings are live (below ${Math.round(safety.min_ratio * 100)}%). ${missing.length} missing listings marked Pending removal, not closed`;
+    // A short feed keeps the original wording; a feed with enough rows but too few known refs says so.
+    const note = rows.length < safety.min_ratio * activeBefore
+      ? `feed has ${rows.length} rows but ${activeBefore} listings are live (below ${percent}%). ${missing.length} missing listings marked Pending removal, not closed`
+      : `${missing.length} of ${activeBefore} live listings are missing from the feed (only ${stillThere} still in it, below ${percent}%). ${missing.length} missing listings marked Pending removal, not closed`;
     result.notes.push(note);
     result.alerts.push(`:warning: ${source.name}: ${note}. Check the feed before releasing them.`);
   } else {
@@ -164,8 +210,9 @@ function planSync({ source, fetchResult, existing, runId, mode = 'live' }) {
   if (result.summary.ignored) result.notes.push(`${result.summary.ignored} new row(s) not available yet, so not listed`);
   if (result.summary.rowErrors) {
     if (result.outcome === 'OK') result.outcome = 'OK with row errors';
-    const first = result.rowErrors.slice(0, 3).map((error) => `${error.ref || 'row ' + error.row}: ${error.problem}${error.raw ? ` ("${error.raw}")` : ''}`);
-    result.alerts.push(`:memo: ${source.name}: ${result.summary.rowErrors} row(s) skipped, the rest synced. ${first.join('; ')}${result.rowErrors.length > 3 ? '; …' : ''}`);
+    // Both copies of a duplicate ref report the same line, so list each line once.
+    const lines = [...new Set(result.rowErrors.map((error) => `${error.ref || 'row ' + error.row}: ${error.problem}${error.raw ? ` ("${error.raw}")` : ''}`))];
+    result.alerts.push(`:memo: ${source.name}: ${result.summary.rowErrors} row(s) skipped, the rest synced. ${lines.slice(0, 3).join('; ')}${lines.length > 3 ? '; …' : ''}`);
   }
   if (mode === 'dry run') {
     result.notes.push(`dry run: ${result.writes.length} write(s) planned, none made`);

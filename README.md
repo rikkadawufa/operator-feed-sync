@@ -8,8 +8,10 @@ A marketplace lists storage units from several operators. Each operator publishe
 - Each listing is matched on `operator + the operator's own unit ref`, so running the sync again never creates a duplicate.
 - A unit marked rented or withdrawn, or one that drops out of the feed, is closed. If it comes back later, the same listing is reopened.
 - A broken row (missing price, unknown unit type, the same ref twice) is skipped and listed in Row Errors with the field and the value. The rest of the feed still syncs, and the broken row's listing stays as it was.
-- If a feed is down, empty or cut off, nothing changes for that operator.
-- If a feed suddenly has far fewer rows than what is live, updates still go through, but removals are held as Pending removal and Slack gets an alert.
+- If a feed is down, empty, cut off mid-record (XML, or a CSV quote left open), an HTML page instead of the feed, or missing the unit ref column, nothing changes for that operator and the note says which.
+- If more than half of an operator's live listings are missing from the feed at once, updates still go through, but the missing ones are set to Pending removal for a person to close, and Slack gets an alert. Any that come back in the feed return to Active on their own. Units the feed itself marks rented or withdrawn close as usual and don't count toward this.
+- If that happens and the feed also has new refs for at least half of the live listings, it looks like the operator renumbered its units: no new listings are created and no missing listing is closed, matching listings are still updated, and Slack asks someone to check.
+- These two checks only apply once an operator has at least 5 live listings (`safety.min_active`).
 - Adding an operator means adding one mapping file in `sources/` and checking it with a dry run. The workflow itself stays the same.
 
 There is also an n8n Cloud version in `workflows-cloud/`: the same sync rules, with mappings kept in an Airtable table instead of files. It passed the same 105 checks on an n8n Cloud trial instance. Setup: [docs/SETUP-CLOUD.md](docs/SETUP-CLOUD.md).
@@ -22,7 +24,7 @@ Ten runs (R1 to R8, including two dry runs) against a real Airtable base, with S
 | --- | --- | --- |
 | R1 | First sync | 22 listings created |
 | R2 | Same feeds again | 0 created, 0 updated, 22 unchanged |
-| R3 | Price change, unit rented, unit gone, new unit, 3 broken rows | Only those listings changed; 4 broken rows named, their listings untouched |
+| R3 | Price change, unit rented, unit gone, new unit, 3 broken rows | Only those listings changed; 4 broken rows named (one ref is on two rows), their listings untouched |
 | R4 | Northgate feed returns HTTP 503 | Northgate untouched, Quayside synced as usual |
 | R5 | Northgate sends 4 of 11 units | 1 price update applied, 7 removals held |
 | R6 | Full feed again | 7 held listings back to Active, 1 closed listing reopened (same record) |
@@ -31,7 +33,7 @@ Ten runs (R1 to R8, including two dry runs) against a real Airtable base, with S
 
 ## How it works
 
-`n8n-src/code/` holds the sync rules as plain JavaScript with unit tests (`node --test n8n-src/code/sync.test.js`, 14 tests). `n8n-src/build-workflows.mjs` puts that code into the n8n workflow files in `workflows/`.
+`n8n-src/code/` holds the sync rules as plain JavaScript with unit tests (`node --test n8n-src/code/sync.test.js`, 26 tests). `n8n-src/build-workflows.mjs` puts that code into the n8n workflow files in `workflows/`.
 
 The workflow handles one operator at a time:
 

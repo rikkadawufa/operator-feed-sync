@@ -6,13 +6,13 @@ This is what the marketplace needs from each operator's feed. You can use your o
 
 - One URL that returns your complete current list of units every time: all of them, not only what changed since last time. A unit missing from the feed is treated as gone.
 - XML, CSV (UTF-8, header row, comma or semicolon) or JSON.
-- The URL answers HTTP 200 with the full file. If you're mid-export or down, answer with an error code (503 is fine) rather than an empty or partial file.
+- The URL answers HTTP 200 with the full file. If you're mid-export or down, answer with an error code (503 is fine) rather than an empty or partial file. A login or error web page in place of the feed is treated as unavailable, and nothing changes.
 
 ## Fields per unit
 
 | Field | Required | Rules |
 | --- | --- | --- |
-| Unit ref | yes | Your own ID for the unit. It never changes, is never reused for a different unit, and appears only once per feed. |
+| Unit ref | yes | Your own ID for the unit. It never changes, is never reused for a different unit, and appears only once per feed. If you ever renumber, tell us first: when more than half of the current refs disappear and new refs replace them, we create no new listings and close none of the missing ones until we check. |
 | Title | yes | Plain text |
 | Unit type | yes | One consistent set of values, for example `S / M / L` or `Small Unit / Medium Unit` |
 | Size | yes | A positive number, in m² or sq ft (tell us which) |

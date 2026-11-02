@@ -78,7 +78,7 @@ const fetchResult = response.error
     })();
 const existing = $input.all().flatMap((item) => item.json.records || []);
 const plan = job.source.brokenFile
-  ? { source: job.source.id, runId: job.runId, mode: job.mode, outcome: 'Mapping file error', summary: { feedRows: 0, created: 0, updated: 0, unchanged: 0, closed: 0, reopened: 0, restored: 0, held: 0, rowErrors: 0, ignored: 0 }, writes: [], rowErrors: [], notes: [job.source.configLabel + ': Mapping is not valid JSON: ' + job.source.brokenFile], alerts: [':warning: ' + job.source.id + ': mapping is not valid JSON, source skipped'] }
+  ? { source: job.source.id, runId: job.runId, mode: job.mode, outcome: 'Mapping file error', summary: { feedRows: 0, created: 0, updated: 0, unchanged: 0, closed: 0, reopened: 0, restored: 0, held: 0, rowErrors: 0, ignored: 0 }, writes: [], rowErrors: [], notes: [job.source.configLabel + ': Mapping is not valid JSON: ' + job.source.brokenFile], alerts: job.mode === 'dry run' ? [] : [':warning: ' + job.source.id + ': mapping is not valid JSON, source skipped'] }
   : planSync({ source: job.source, fetchResult, existing, runId: job.runId, mode: job.mode });
 const { run, errors } = runRecords(plan);
 

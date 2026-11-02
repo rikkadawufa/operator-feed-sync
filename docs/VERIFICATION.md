@@ -1,6 +1,6 @@
 # Verification
 
-Run on 2026-10-30 with n8n 2.44.7 and the simulated feed server in local Docker. The target was a real Airtable base (Larkspur Spaces – Feed Sync Demo, free plan), and alerts went to a real Slack webhook. The operators, feeds and listings are all made up.
+Run on 2026-10-30 with n8n 2.44.7 and the simulated feed server in local Docker. The target was a real Airtable base (Larkspur Spaces – Feed Sync Demo, free plan), and alerts went to a real Slack webhook. The operators, feeds and listings are all made up. Re-run on 2026-11-02 with the current sync rules (self-hosted and n8n-cloudsim): same counts, same reports.
 
 ## How to run it
 
@@ -13,7 +13,7 @@ node --test n8n-src/code/*.test.js        # unit tests for the sync rules
 ## Results
 
 - `check_results.py`: 105 of 105 checks pass. It checks the numbers in each run's n8n report and an Airtable snapshot read back after each run, and confirms in every run that no Listing key appears twice. Output: [results/check-results.txt](../results/check-results.txt).
-- Unit tests: 14 of 14 pass.
+- Unit tests: 26 of 26 pass.
 - n8n event log: 42 executions of the feed sync workflow that day, all successful. The error workflow never fired. The sequence was run from an empty base several times to take screenshots at each step, and every pass gave the same counts.
 - Slack alert node: 22 runs, all successful. Each complete pass through R3 to R5 sends 5 alerts (R3 Quayside's bad rows, R4 Northgate down plus Quayside, R5 removals held plus Quayside), and four passes make 20. The other 2 came from the first R1 attempt described under Fixes. The evidence is the n8n event log; there are no screenshots of Slack.
 
@@ -44,7 +44,7 @@ After R8 the Listings table has 28 rows and no duplicates. Each run's report is 
 - Pending removal has no release button. A person closes those listings in Airtable by hand; a later run never closes them (unit test "held listings stay held when a later feed is big enough to close").
 - Reading from Airtable uses pagination, but each operator had at most 13 listings. Large feeds and 429 rate limits weren't tested. Writes are throttled to 4 per second and retried.
 - If Airtable can't be read, the workflow stops and alerts, by design. That path wasn't triggered.
-- An unreachable feed (DNS failure, timeout) takes the same Feed unavailable path. The live runs tested only HTTP 503; empty and cut-off XML were tested only in unit tests.
+- An unreachable feed (DNS failure, timeout) takes the same Feed unavailable path. The live runs tested only HTTP 503; empty and cut-off XML, HTML pages, a missing or empty ref column, duplicate-ref padding and renumbered IDs were tested only in unit tests.
 - No login protection and no deployment. Everything ran on localhost.
 - A listing edited by hand in Airtable isn't overwritten until the feed changes that unit, because the sync compares against the hash it stored last time, not the current cell values.
 - A single unit missing from a feed is closed in that run. There is no grace period (for example, missing two runs in a row); if the unit comes back, the same listing reopens.

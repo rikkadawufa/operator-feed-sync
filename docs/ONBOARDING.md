@@ -40,7 +40,7 @@ The comments above are only there to explain the file. Real JSON files can't con
 - Required: `external_ref`, `title`, `unit_type`, `size`, `monthly_price`, `status`.
 - Our unit types are `locker`, `small`, `medium`, `large` and `parking`. Our statuses are `available`, `rented` and `withdrawn`.
 - If the operator already uses our words (Pinecrest's `kind` is already `small`, `medium` and so on), leave that part of `values` out.
-- `safety`: if the feed has fewer rows than `min_ratio` × the listings currently live, and at least `min_active` listings are live, removals are held instead of applied.
+- `safety`: `min_ratio` is the share of live listings that must still be in the feed. With 0.5, if more than half of them are missing from the feed at once, the missing ones are set to Pending removal for a person to close instead of closing. Units the feed marks rented or withdrawn close as usual and don't count. If the feed also has new refs for at least half of the live listings, no new listings are created and no missing listing is closed (IDs look changed). Both checks apply only when at least `min_active` listings are live.
 
 ## 2. Dry run
 
@@ -69,4 +69,4 @@ Run the same call without `"mode": "dry run"`. Check that the Sync Runs row says
 
 ## If something looks wrong
 
-A Mapping file error in Sync Runs means the file is missing a required field or maps to a value we don't accept; the note says which one. Feed unavailable means the URL didn't answer 200, or the feed was empty or cut off, and nothing changed for this operator. [OPERATIONS.md](OPERATIONS.md) covers alerts and held removals.
+A Mapping file error in Sync Runs means the file is missing a required field or maps to a value we don't accept; the note says which one. Feed unavailable means the URL didn't answer 200, the feed was empty or cut off mid-record (XML, or a CSV quote left open), it was an HTML page, or the ref field wasn't found; nothing changed for this operator. A missing ref field reads `mapping field "unit_code" is not in the feed; the feed has: …` and lists the fields the feed does have, so you can fix `fields.external_ref`. `no row has a value in "unit_code"` means the field is there but empty. [OPERATIONS.md](OPERATIONS.md) covers alerts and held removals.
