@@ -43,14 +43,22 @@ def temp_json(data):
         return Path(handle.name)
 
 
+DEMO_FEED_SECRETS = {"DEMO_KEY": "demo-key-123", "DEMO_PASSWORD": "demo-pass-456"}
+
+
 def import_credentials(service, values):
     credentials = [{"id": "airtableTokenCred01", "name": "Airtable (demo base)", "type": "airtableTokenApi",
-                    "data": {"accessToken": require(values, "AIRTABLE_TOKEN")}}]
+                    "data": {"accessToken": require(values, "AIRTABLE_TOKEN")}},
+                   # The demo SFTP server's test-only login (docker-compose.yml, service sftp).
+                   {"id": "sftpSupplierCred01", "name": "Supplier SFTP", "type": "sftp",
+                    "data": {"host": "sftp", "port": 22, "username": "larkspur", "password": "demo-pass-456"}}]
     copy_in_and_run(service, temp_json(credentials), "/tmp/feed-sync-credentials.json", ["n8n", "import:credentials", "--input"], values)
 
 
 def import_cloud_workflows(values):
-    filled = {"airtableBaseId": require(values, "AIRTABLE_BASE_ID"), "slackWebhookUrl": require(values, "SLACK_WEBHOOK_URL")}
+    # The demo feed server's test-only keys (feed-server/server.js); a real install puts its suppliers' keys here.
+    feed_secrets = values.get("FEED_SECRETS") or json.dumps(DEMO_FEED_SECRETS)
+    filled = {"airtableBaseId": require(values, "AIRTABLE_BASE_ID"), "slackWebhookUrl": require(values, "SLACK_WEBHOOK_URL"), "feedSecrets": feed_secrets}
     for workflow_id in CLOUD_WORKFLOW_IDS:
         workflow = json.loads((ROOT / "workflows-cloud" / f"{workflow_id}.json").read_text(encoding="utf-8"))
         for node in workflow["nodes"]:

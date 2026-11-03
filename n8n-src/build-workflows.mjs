@@ -6,7 +6,10 @@ import { createHash } from 'node:crypto';
 
 const root = dirname(fileURLToPath(import.meta.url));
 const outputDir = join(root, '..', 'workflows');
-const CREDS = { airtable: { airtableTokenApi: { id: 'airtableTokenCred01', name: 'Airtable (demo base)' } } };
+const CREDS = {
+  airtable: { airtableTokenApi: { id: 'airtableTokenCred01', name: 'Airtable (demo base)' } },
+  sftp: { sftp: { id: 'sftpSupplierCred01', name: 'Supplier SFTP' } },
+};
 
 const id = (name) => name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
 const stableUuid = (value) => createHash('sha1').update(value).digest('hex').slice(0, 32).replace(/^(.{8})(.{4})(.{4})(.{4})(.{12})$/, '$1-$2-$3-$4-$5');
@@ -34,13 +37,48 @@ const workflow = (wfId, name, nodes, connections, errorWorkflow = true) => ({
   nodes, connections, pinData: {}, versionId: '1',
 });
 
+// SFTP feeds. n8n's FTP node takes its host and login from one credential per node, so this
+// branch serves the sources whose mapping says "transport": "sftp", all through the
+// "Supplier SFTP" credential. A second SFTP supplier on another server needs a copy of
+// "Fetch over SFTP" with its own credential. Both branches meet in "Feed response", which
+// Plan changes reads, so the rest of the workflow doesn't care how the feed arrived.
+const SFTP_NODES = ['SFTP source?', 'Fetch over SFTP', 'SFTP file as text', 'Feed response'];
+function addSftpBranch(nodes, connections) {
+  const fetchFeed = nodes.find((node) => node.name === 'Fetch feed');
+  const [x, y] = fetchFeed.position;
+  for (const node of nodes) if (node.position[0] > x && node.position[1] <= y && node.type !== 'n8n-nodes-base.stickyNote') node.position = [node.position[0] + 660, node.position[1]];
+  fetchFeed.position = [x + 220, y - 100];
+  nodes.push(
+    at(ifNode('SFTP source?', '={{ $json.source.transport }}', { type: 'string', operation: 'equals' }, 'sftp'), x, y),
+    at({
+      id: 'fetch-over-sftp', name: 'Fetch over SFTP', type: 'n8n-nodes-base.ftp', typeVersion: 1, position: [0, 0],
+      retryOnFail: true, maxTries: 2, waitBetweenTries: 3000, onError: 'continueRegularOutput', credentials: CREDS.sftp,
+      parameters: { protocol: 'sftp', operation: 'download', path: '={{ $json.source.path }}', binaryPropertyName: 'data' },
+    }, x + 220, y + 100),
+    at(code('SFTP file as text', `const item = $input.first();
+if (item.json.error) return [{ json: { error: item.json.error } }];
+const buffer = await this.helpers.getBinaryDataBuffer(0, 'data');
+return [{ json: { statusCode: 200, data: buffer.toString('utf8') } }];`), x + 440, y + 100),
+    at({ id: 'feed-response', name: 'Feed response', type: 'n8n-nodes-base.noOp', typeVersion: 1, position: [0, 0], parameters: {} }, x + 660, y),
+  );
+  connections['Each source'].main[1] = [edge('SFTP source?')];
+  connections['SFTP source?'] = { main: [[edge('Fetch over SFTP')], [edge('Fetch feed')]] };
+  connections['Fetch over SFTP'] = { main: [[edge('SFTP file as text')]] };
+  connections['SFTP file as text'] = { main: [[edge('Feed response')]] };
+  connections['Fetch feed'] = { main: [[edge('Feed response')]] };
+  connections['Feed response'] = { main: [[edge('Read current listings')]] };
+  return { nodes, connections };
+}
+
 function feedSync() {
   const nodes = [
     note('About', '## Feed sync\nReads each operator feed listed in `sources/*.json`, maps it to the listing format, and keeps the **Listings** table in step: create, update, close, reopen. One source at a time; a broken feed or row never stops the others.\n\nThe webhook is for on-demand runs and the test runner. In production the schedule replaces it.', -120, -260, 820, 220, 7),
     note('Safety', '## Safety rules (in **Plan changes**)\n- Feed down, empty or unreadable: nothing changes for that source.\n- Feed far smaller than what is live: updates go through, removals are **held** as Pending removal.\n- Bad row: skipped and named in Row Errors; its listing is not closed.\n- If current listings can\'t be read, the run stops instead of creating duplicates.', 760, -260, 900, 220, 5),
     at({ id: 'run-now', name: 'Run now (webhook)', type: 'n8n-nodes-base.webhook', typeVersion: 2, position: [0, 0], webhookId: stableUuid('feed-sync'), parameters: { httpMethod: 'POST', path: 'feed-sync', responseMode: 'responseNode', options: {} } }, 0, 100),
     at({ id: 'every-6-hours', name: 'Every 6 hours', type: 'n8n-nodes-base.scheduleTrigger', typeVersion: 1.2, position: [0, 0], disabled: true, parameters: { rule: { interval: [{ field: 'hours', hoursInterval: 6 }] } } }, 0, 300),
-    at(code('Load sources', `const fs = require('fs');
+    at(code('Load sources', `${source('fetch')}
+
+const fs = require('fs');
 const body = ($input.first().json.body) || {};
 const runId = String(body.run || new Date().toISOString().slice(0, 16).replace(':', ''));
 if (!/^[A-Za-z0-9._-]{1,40}$/.test(runId)) throw new Error('run id may only use letters, digits, dot, dash and underscore');
@@ -54,12 +92,21 @@ const sources = fs.readdirSync(dir).filter((file) => file.endsWith('.json')).sor
 const picked = sources.filter((s) => (only ? only.includes(s.id) : s.enabled !== false));
 if (!picked.length) throw new Error('no sources to run' + (only ? ': ' + only.join(', ') : ''));
 fs.mkdirSync('/files/output/runs/' + runId, { recursive: true });
-return picked.map((s) => ({ json: { runId, mode, source: s } }));`), 220, 200),
+const secretFor = (name) => $env['FEED_SECRET_' + name] || '';
+// The secret values travel with the item only as far as Fetch feed; notes and alerts redact them.
+return picked.map((s) => {
+  try {
+    const request = feedRequest(s, secretFor);
+    return { json: { runId, mode, source: s, fetchUrl: request.url, fetchHeaders: request.headers, secrets: request.secrets } };
+  } catch (error) {
+    return { json: { runId, mode, source: s, fetchError: error.message, secrets: [] } };
+  }
+});`), 220, 200),
     at({ id: 'each-source', name: 'Each source', type: 'n8n-nodes-base.splitInBatches', typeVersion: 3, position: [0, 0], parameters: { batchSize: 1, options: {} } }, 440, 200),
     at({
       id: 'fetch-feed', name: 'Fetch feed', type: 'n8n-nodes-base.httpRequest', typeVersion: 4.2, position: [0, 0],
       retryOnFail: true, maxTries: 2, waitBetweenTries: 3000, onError: 'continueRegularOutput',
-      parameters: { method: 'GET', url: "={{ $json.source.url || 'http://invalid.local/' }}", options: { timeout: 15000, response: { response: { fullResponse: true, neverError: true, responseFormat: 'text' } } } },
+      parameters: { method: 'GET', url: "={{ $json.fetchUrl || 'http://invalid.local/' }}", sendHeaders: true, specifyHeaders: 'json', jsonHeaders: '={{ JSON.stringify($json.fetchHeaders || {}) }}', options: { timeout: 15000, response: { response: { fullResponse: true, neverError: true, responseFormat: 'text' } } } },
     }, 680, 100),
     at({
       id: 'read-current-listings', name: 'Read current listings', type: 'n8n-nodes-base.httpRequest', typeVersion: 4.2, position: [0, 0],
@@ -76,13 +123,15 @@ return picked.map((s) => ({ json: { runId, mode, source: s } }));`), 220, 200),
         } } },
       },
     }, 900, 100),
-    at(code('Plan changes', `${source('parse', 'map', 'plan')}
+    at(code('Plan changes', `${source('parse', 'map', 'fetch', 'plan')}
 
 const fs = require('fs');
 const job = $('Each source').first().json;
-const response = $('Fetch feed').first().json;
-const fetchResult = response.error
-  ? { error: String(response.error.message || response.error).slice(0, 200) }
+const response = $('Feed response').first().json;
+const fetchResult = job.fetchError
+  ? { error: job.fetchError }
+  : response.error
+  ? { error: redact(String(response.error.message || response.error), job.secrets).slice(0, 200) }
   : (() => {
       // With responseFormat "text" n8n puts the body in \`data\`; keep \`body\` as a fallback.
       const raw = response.data !== undefined ? response.data : response.body;
@@ -132,7 +181,7 @@ fs.writeFileSync(dir + '/report.json', JSON.stringify(report, null, 2), 'utf8');
 return [{ json: report }];`), 680, 380),
     at({ id: 'reply', name: 'Reply with report', type: 'n8n-nodes-base.respondToWebhook', typeVersion: 1.1, position: [0, 0], parameters: { respondWith: 'json', responseBody: '={{ JSON.stringify($json) }}', options: {} } }, 900, 380),
   ];
-  return workflow('wfFeedSync', 'Feed sync: operator feeds to Listings', nodes, {
+  const wired = addSftpBranch(nodes, {
     'Run now (webhook)': { main: [[edge('Load sources')]] },
     'Every 6 hours': { main: [[edge('Load sources')]] },
     'Load sources': { main: [[edge('Each source')]] },
@@ -146,6 +195,7 @@ return [{ json: report }];`), 680, 380),
     'Send alert': { main: [[edge('Each source')]] },
     'Build report': { main: [[edge('Reply with report')]] },
   });
+  return workflow('wfFeedSync', 'Feed sync: operator feeds to Listings', wired.nodes, wired.connections);
 }
 
 function errorHandler() {
@@ -179,4 +229,4 @@ if (fileURLToPath(import.meta.url) === resolve(process.argv[1])) {
   const built = buildWorkflows();
   console.log(`Wrote ${built.length} workflows: ${built.map((item) => item.id).join(', ')}`);
 }
-export { buildWorkflows, CREDS, id, stableUuid, at, edge, note, source, code, ifNode, greater, airtableAuth };
+export { buildWorkflows, addSftpBranch, CREDS, id, stableUuid, at, edge, note, source, code, ifNode, greater, airtableAuth };

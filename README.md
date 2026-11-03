@@ -13,6 +13,7 @@ A marketplace lists storage units from several operators. Each operator publishe
 - If that happens and the feed also has new refs for at least half of the live listings, it looks like the operator renumbered its units: no new listings are created and no missing listing is closed, matching listings are still updated, and Slack asks someone to check.
 - These two checks only apply once an operator has at least 5 live listings (`safety.min_active`).
 - Adding an operator means adding one mapping file in `sources/` and checking it with a dry run. The workflow itself stays the same.
+- Feeds can also sit behind an API key, a bearer token or a username and password, come from an SFTP server, or be a Google Sheet; an optional markup turns the operator's price into the listing price. See [ONBOARDING.md](docs/ONBOARDING.md#optional-settings).
 
 There is also an n8n Cloud version in `workflows-cloud/`: the same sync rules, with mappings kept in an Airtable table instead of files. It passed the same 105 checks on an n8n Cloud trial instance. Setup: [docs/SETUP-CLOUD.md](docs/SETUP-CLOUD.md).
 
@@ -33,11 +34,11 @@ Ten runs (R1 to R8, including two dry runs) against a real Airtable base, with S
 
 ## How it works
 
-`n8n-src/code/` holds the sync rules as plain JavaScript with unit tests (`node --test n8n-src/code/sync.test.js`, 26 tests). `n8n-src/build-workflows.mjs` puts that code into the n8n workflow files in `workflows/`.
+`n8n-src/code/` holds the sync rules as plain JavaScript with unit tests (`node --test n8n-src/code/sync.test.js`, 37 tests). `scripts/run_extras.py` checks the optional feed settings live with dry runs. `n8n-src/build-workflows.mjs` puts that code into the n8n workflow files in `workflows/`.
 
 The workflow handles one operator at a time:
 
-1. Fetch feed: an HTTP request to the operator's URL.
+1. Fetch feed: an HTTP request to the operator's URL (with its key, if the mapping has `auth`), or a download from SFTP.
 2. Read current listings: everything in Airtable for that operator. If this fails, the run stops, because guessing would create duplicates.
 3. Plan changes: parse the feed, map it with the operator's mapping file, check each row, compare with what is live, and apply the safety rules.
 4. Write to Airtable: upsert listings in batches of 10 on `Listing key`, then log the run in Sync Runs and any bad rows in Row Errors.

@@ -8,6 +8,7 @@ What changes:
 | --- | --- | --- |
 | Supplier mappings | `sources/<id>.json` files | One row per supplier in the **Feed Sources** table |
 | Airtable base ID, Slack URL | Environment variables | The **Settings** node (one in each workflow) |
+| Supplier keys (`auth` in a mapping) | `FEED_SECRET_<name>` environment variables | **feedSecrets** in the feed sync's **Settings** node, as JSON |
 | Run report | Written to `output/runs/<run>/` and returned | Returned by the webhook; Sync Runs and Row Errors as before |
 | Error workflow | Linked on import | Picked by hand in the workflow settings |
 
@@ -23,12 +24,12 @@ Use the same three tables as in [SETUP.md](SETUP.md), plus a fourth:
 
 1. Create an Airtable credential (Personal Access Token) with `data.records:read` and `data.records:write` on the base.
 2. Import `workflows-cloud/wfSyncErrorsCloud.json`, then `workflows-cloud/wfFeedSyncCloud.json`.
-3. In each workflow, open **Settings** and fill in the Airtable base ID (starts with `app`) and the Slack incoming webhook.
-4. In the feed sync, pick the Airtable credential on **Read feed sources**, **Read current listings** and **Write to Airtable**.
+3. In each workflow, open **Settings** and fill in the Airtable base ID (starts with `app`) and the Slack incoming webhook. In the feed sync, **feedSecrets** holds the supplier keys, for example `{ "NORTHGATE_KEY": "…" }`; leave it as `{}` if no feed needs one.
+4. In the feed sync, pick the Airtable credential on **Read feed sources**, **Read current listings** and **Write to Airtable**. If a supplier sends its feed over SFTP, create an SFTP credential and pick it on **Fetch over SFTP**; otherwise leave that node as it is.
 5. Publish the error handler first (n8n only offers published error workflows), then in the feed sync's workflow settings set **Error Workflow** to "Feed sync (Cloud): error handler".
 6. Publish both. For production, enable **Every 6 hours** (or your own schedule).
 
-Supplier feed URLs have to be reachable from the internet, since n8n Cloud can't see your local network.
+Supplier feed URLs and SFTP servers have to be reachable from the internet, since n8n Cloud can't see your local network. n8n Cloud's outgoing IP addresses change, so an SFTP server that only allows listed IPs may refuse it; ask the supplier before you count on SFTP there.
 
 ## 3. Check it
 

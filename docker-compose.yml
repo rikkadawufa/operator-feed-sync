@@ -17,6 +17,10 @@ services:
       # Non-secret values only. The Airtable token lives in an n8n credential (scripts/n8n_setup.py).
       - AIRTABLE_BASE_ID=${AIRTABLE_BASE_ID}
       - SLACK_WEBHOOK_URL=${SLACK_WEBHOOK_URL}
+      # Supplier keys for feeds with "auth" in their mapping: FEED_SECRET_<name>. These two are
+      # the demo feed server's test-only keys (feed-server/server.js).
+      - FEED_SECRET_DEMO_KEY=demo-key-123
+      - FEED_SECRET_DEMO_PASSWORD=demo-pass-456
     volumes:
       - n8n_data:/home/node/.n8n
       - ./sources:/files/sources:ro
@@ -24,6 +28,7 @@ services:
       - ./output:/files/output
     depends_on:
       - feeds
+      - sftp
 
   # Stand-in for n8n Cloud: default Code-node limits (no require, no $env) and no file mounts
   # the workflow could use. Only started with: docker compose --profile cloudsim up -d
@@ -56,6 +61,15 @@ services:
     volumes:
       - ./feed-server/server.js:/srv/server.js:ro
       - ./sample-data/feeds:/srv/feeds:ro
+
+  # A supplier's SFTP server, for sources with "transport": "sftp". Test-only login (scripts/n8n_setup.py
+  # puts it in the Supplier SFTP credential); serves the sample feeds read-only under /feeds.
+  sftp:
+    image: atmoz/sftp:alpine
+    restart: unless-stopped
+    command: larkspur:demo-pass-456:1001
+    volumes:
+      - ./sample-data/feeds:/home/larkspur/feeds:ro
 
 volumes:
   n8n_data:

@@ -5,7 +5,7 @@ const { readFileSync } = require('node:fs');
 const { join } = require('node:path');
 
 // The modules share globals the same way they do when inlined into one n8n Code node.
-Object.assign(global, require('./parse.js'), require('./map.js'));
+Object.assign(global, require('./parse.js'), require('./map.js'), require('./fetch.js'));
 const { planSync, runRecords, chunk, listingKey } = require('./plan.js');
 
 const demo = join(__dirname, '..', '..');
@@ -66,6 +66,131 @@ test('mapping: sq ft converted, values translated, problems named', () => {
   assert.equal(listing.climate_controlled, true);
   const bad = mapRow({ ...rows[6].raw, Category: 'Jumbo', 'Monthly Rate': '' }, source('quayside'));
   assert.deepEqual(bad.problems.map((p) => p.field), ['unit_type', 'monthly_price']);
+});
+
+test('markup: percent, fixed add and rounding', () => {
+  assert.equal(applyMarkup(29, undefined), 29);
+  assert.equal(applyMarkup(29, { percent: 30 }), 37.7);
+  assert.equal(applyMarkup(29, { percent: 30, add: 2 }), 39.7);
+  assert.equal(applyMarkup(29, { percent: 30, round: 'whole' }), 38);
+  assert.equal(applyMarkup(29, { percent: 30, round: '99' }), 37.99);
+  assert.equal(applyMarkup(30, { round: '99' }), 30.99);
+  const marked = { ...source('quayside'), markup: { percent: 25, round: '99' } };
+  const { rows } = parseFeed(feed('day1/quayside.csv'), marked);
+  assert.equal(mapRow(rows[4].raw, marked).listing.monthly_price, 147.99);
+  const below = mapRow(rows[4].raw, { ...marked, markup: { add: -500 } });
+  assert.deepEqual(below.problems.map((p) => p.problem), ['price after markup is not a positive number']);
+});
+
+test('a markup change updates every price once, then nothing', () => {
+  const table = [];
+  run(table, 'quayside', feed('day1/quayside.csv'), 'R1');
+  const marked = { ...source('quayside'), markup: { percent: 10 } };
+  const first = planSync({ source: marked, fetchResult: ok(feed('day1/quayside.csv')), existing: table, runId: 'M1' });
+  assert.equal(first.summary.updated, first.summary.feedRows - first.summary.rowErrors);
+  apply(table, first);
+  const again = planSync({ source: marked, fetchResult: ok(feed('day1/quayside.csv')), existing: table, runId: 'M2' });
+  assert.deepEqual([again.summary.updated, again.writes.length], [0, 0]);
+});
+
+test('bad markup settings are refused', () => {
+  const issues = (markup) => checkSource({ ...source('quayside'), markup });
+  assert.deepEqual(issues({ percent: 30, add: 1.5, round: 'whole' }), []);
+  assert.equal(issues({ percent: '30' }).length, 1);
+  assert.equal(issues({ percent: -100 }).length, 1);
+  assert.equal(issues({ round: 'up' }).length, 1);
+  assert.equal(issues({ margin: 30 }).length, 1);
+  assert.equal(issues(30).length, 1);
+});
+
+test('Google Sheets links become the CSV export', () => {
+  const sheet = (url, format = 'csv') => ({ ...source('quayside'), url, format });
+  const id = '1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms';
+  assert.equal(feedUrl(sheet(`https://docs.google.com/spreadsheets/d/${id}/edit?usp=sharing`)), `https://docs.google.com/spreadsheets/d/${id}/export?format=csv`);
+  assert.equal(feedUrl(sheet(`https://docs.google.com/spreadsheets/d/${id}/edit#gid=1234`)), `https://docs.google.com/spreadsheets/d/${id}/export?format=csv&gid=1234`);
+  assert.equal(feedUrl(sheet(`https://docs.google.com/spreadsheets/d/${id}/edit?gid=55#gid=55`)), `https://docs.google.com/spreadsheets/d/${id}/export?format=csv&gid=55`);
+  const published = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQabcdefghijklmnopqrstuvwxyz/pub?output=csv';
+  assert.equal(feedUrl(sheet(published)), published);
+  assert.equal(feedUrl(source('quayside')), 'http://feeds:8080/feeds/quayside');
+  assert.deepEqual(checkFetch(sheet(`https://docs.google.com/spreadsheets/d/${id}/edit`, 'xml')).length, 1);
+  assert.deepEqual(checkFetch(sheet(`https://docs.google.com/spreadsheets/d/${id}/edit`)), []);
+});
+
+test('a Google Sheets CSV export syncs, a sign-in page stops the source', () => {
+  // Sheets exports CRLF line ends, no BOM, and quotes only fields that need it.
+  const csv = feed('day1/quayside.csv').replace(/\r?\n/g, '\r\n');
+  const plan = planSync({ source: source('quayside'), fetchResult: ok(csv), existing: [], runId: 'GS1' });
+  assert.equal(plan.summary.created, 10);
+  const signIn = planSync({ source: source('quayside'), fetchResult: ok('<!doctype html><html lang="en"><head><title>Sign in</title>'), existing: [], runId: 'GS2' });
+  assert.equal(signIn.outcome, 'Feed unavailable');
+});
+
+test('feed auth: header, bearer, basic and query', () => {
+  const secrets = { SUPPLIER_KEY: 'k3y/with+chars', SUPPLIER_PASSWORD: 'pässword' };
+  const secretFor = (name) => secrets[name] || '';
+  const withAuth = (auth, url = 'https://feeds.example.com/stock.csv') => ({ ...source('quayside'), url, auth });
+  assert.deepEqual(feedRequest(source('quayside'), secretFor), { url: 'http://feeds:8080/feeds/quayside', headers: {}, secrets: [] });
+  assert.deepEqual(feedRequest(withAuth({ type: 'header', name: 'X-API-Key', secret: 'SUPPLIER_KEY' }), secretFor).headers, { 'X-API-Key': 'k3y/with+chars' });
+  assert.deepEqual(feedRequest(withAuth({ type: 'bearer', secret: 'SUPPLIER_KEY' }), secretFor).headers, { Authorization: 'Bearer k3y/with+chars' });
+  const basic = feedRequest(withAuth({ type: 'basic', user: 'larkspur', secret: 'SUPPLIER_PASSWORD' }), secretFor);
+  assert.equal(basic.headers.Authorization, `Basic ${Buffer.from('larkspur:pässword').toString('base64')}`);
+  const query = feedRequest(withAuth({ type: 'query', name: 'api_key', secret: 'SUPPLIER_KEY' }, 'https://feeds.example.com/stock?day=1'), secretFor);
+  assert.equal(query.url, 'https://feeds.example.com/stock?day=1&api_key=k3y%2Fwith%2Bchars');
+  assert.throws(() => feedRequest(withAuth({ type: 'header', name: 'X-API-Key', secret: 'MISSING_KEY' }), secretFor), /MISSING_KEY is not set/);
+  for (const text of ['', 'a', 'ab', 'abc', 'abcd', 'é漢']) assert.equal(base64(text), Buffer.from(text).toString('base64'));
+});
+
+test('feed auth: secrets stay out of notes', () => {
+  const request = feedRequest({ ...source('quayside'), url: 'https://feeds.example.com/s', auth: { type: 'query', name: 'key', secret: 'SUPPLIER_KEY' } }, () => 'top secret');
+  assert.equal(redact('GET https://feeds.example.com/s?key=top%20secret failed (top secret)', request.secrets), 'GET https://feeds.example.com/s?key=*** failed (***)');
+  const plan = planSync({ source: source('quayside'), fetchResult: { error: 'secret SUPPLIER_KEY is not set' }, existing: [], runId: 'A1' });
+  assert.equal(plan.outcome, 'Feed unavailable');
+  assert.match(plan.notes[0], /SUPPLIER_KEY is not set/);
+});
+
+test('feed auth: bad settings are refused', () => {
+  const issues = (auth, url = 'https://feeds.example.com/s') => checkFetch({ ...source('quayside'), url, auth });
+  assert.deepEqual(issues({ type: 'header', name: 'X-API-Key', secret: 'SUPPLIER_KEY' }), []);
+  assert.deepEqual(issues({ type: 'basic', user: 'larkspur', secret: 'SUPPLIER_PASSWORD' }), []);
+  assert.equal(issues({ type: 'header', secret: 'SUPPLIER_KEY' }).length, 1);
+  assert.equal(issues({ type: 'header', name: 'X-API-Key', secret: 'sk_live_abc123' }).length, 1);
+  assert.equal(issues({ type: 'basic', secret: 'SUPPLIER_PASSWORD' }).length, 1);
+  assert.equal(issues({ type: 'oauth', secret: 'SUPPLIER_KEY' }).length, 1);
+  assert.equal(issues({ type: 'bearer', secret: 'SUPPLIER_KEY', password: 'x' }).length, 1);
+  assert.equal(issues({ type: 'bearer', secret: 'SUPPLIER_KEY' }, 'http://feeds.example.com/s').length, 1);
+  const plan = planSync({ source: { ...source('quayside'), auth: { type: 'bearer' } }, fetchResult: ok(feed('day1/quayside.csv')), existing: [], runId: 'A2' });
+  assert.equal(plan.outcome, 'Mapping file error');
+});
+
+test('sftp sources: a path instead of a url, login in the credential', () => {
+  const { url, ...rest } = source('quayside');
+  const sftp = (changes) => [...checkSource({ ...rest, transport: 'sftp', path: '/feeds/day1/quayside.csv', ...changes }), ...checkFetch({ ...rest, transport: 'sftp', path: '/feeds/day1/quayside.csv', ...changes })];
+  assert.deepEqual(sftp({}), []);
+  assert.deepEqual(feedRequest({ ...rest, transport: 'sftp', path: '/x.csv' }, () => ''), { url: '', headers: {}, secrets: [] });
+  assert.equal(sftp({ path: 'feeds/stock.csv' }).length, 1);
+  assert.equal(sftp({ path: undefined }).length, 1);
+  assert.equal(sftp({ url: 'sftp://host/x.csv' }).length, 1);
+  assert.equal(sftp({ auth: { type: 'basic', user: 'a', secret: 'SUPPLIER_PASSWORD' } }).length, 1);
+  assert.equal(checkFetch({ ...source('quayside'), transport: 'ftp' }).length, 1);
+  assert.deepEqual(checkSource(rest), ['missing "url"']);
+});
+
+test('feed auth: a bad setting never sends the key', () => {
+  const sent = (auth, url = 'https://feeds.example.com/s') => () => feedRequest({ ...source('quayside'), url, auth }, () => 'top secret');
+  assert.throws(sent({ type: 'Bearer', secret: 'SUPPLIER_KEY' }), FeedRequestError);
+  assert.throws(sent({ type: 'header', secret: 'SUPPLIER_KEY' }), FeedRequestError);
+  assert.throws(sent({ type: 'bearer', secret: 'SUPPLIER_KEY' }, 'http://feeds.example.com/s'), FeedRequestError);
+  assert.throws(sent({ type: 'bearer', secret: 'SUPPLIER_KEY' }, 'http://localhost:80@feeds.example.com/s'), FeedRequestError);
+  assert.throws(sent({ type: 'bearer', secret: 'AKIAIOSFODNN7EXAMPLE' }), FeedRequestError);
+  assert.doesNotThrow(sent({ type: 'bearer', secret: 'SUPPLIER_KEY' }, 'http://feeds:8080/feeds/quayside'));
+  const plan = planSync({ source: { ...source('quayside'), url: 'https://feeds.example.com/s', auth: { type: 'bearer', secret: 'AKIAIOSFODNN7EXAMPLE' } }, fetchResult: { error: 'mapping has fetch settings problems' }, existing: [], runId: 'A3' });
+  assert.equal(plan.outcome, 'Mapping file error');
+  assert.ok(!JSON.stringify(plan).includes('AKIAIOSFODNN7EXAMPLE'));
+});
+
+test('Google Sheets links from a second signed-in account', () => {
+  const id = '1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms';
+  assert.equal(feedUrl({ url: `https://docs.google.com/spreadsheets/u/1/d/${id}/edit#gid=5` }), `https://docs.google.com/spreadsheets/d/${id}/export?format=csv&gid=5`);
 });
 
 test('R1 creates, R2 changes nothing', () => {

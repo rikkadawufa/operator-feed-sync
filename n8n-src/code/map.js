@@ -23,6 +23,20 @@ function parseNumber(value, decimal = '.') {
   return Number(cleaned.replace(new RegExp(group, 'g'), '').replace(',', '.'));
 }
 
+// Optional "markup" in the mapping turns the supplier's price into the listing price:
+// price × (1 + percent / 100) + add, then rounded to cents, to a whole number, or up to .99
+// (36.20 → 36.99, 37.00 → 37.99), so rounding never goes below the marked-up price.
+const ROUNDING = ['cents', 'whole', '99'];
+
+function applyMarkup(price, markup) {
+  const cents = (value) => Math.round(value * 100) / 100;
+  if (!markup) return cents(price);
+  const raised = cents(price * (1 + (markup.percent || 0) / 100) + (markup.add || 0));
+  if (markup.round === 'whole') return Math.round(raised);
+  if (markup.round === '99') return cents(Math.floor(raised) + 0.99);
+  return raised;
+}
+
 function lookup(map, value) {
   if (!map) return value;
   const key = Object.keys(map).find((candidate) => candidate.toLowerCase() === value.toLowerCase());
@@ -54,9 +68,11 @@ function mapRow(raw, source) {
   else if (!(size > 0)) problem('size', 'size is not a positive number', rawSize);
 
   const rawPrice = read('monthly_price');
-  const price = parseNumber(rawPrice, source.decimal);
+  const supplierPrice = parseNumber(rawPrice, source.decimal);
+  const price = applyMarkup(supplierPrice, source.markup);
   if (!rawPrice) problem('monthly_price', 'missing price', '');
-  else if (!(price > 0)) problem('monthly_price', 'price is not a positive number', rawPrice);
+  else if (!(supplierPrice > 0)) problem('monthly_price', 'price is not a positive number', rawPrice);
+  else if (!(price > 0)) problem('monthly_price', 'price after markup is not a positive number', rawPrice);
 
   const rawStatus = read('status');
   const status = lookup(values.status, rawStatus);
@@ -77,7 +93,7 @@ function mapRow(raw, source) {
       title,
       unit_type: unitType,
       size_m2: size,
-      monthly_price: Math.round(price * 100) / 100,
+      monthly_price: price,
       area: read('area'),
       climate_controlled: climate === true,
       image_url: imageUrl,
@@ -89,7 +105,9 @@ function mapRow(raw, source) {
 // Checks a mapping file before it is used, so a typo fails loudly instead of skipping fields.
 function checkSource(source) {
   const issues = [];
-  for (const name of ['id', 'name', 'format', 'url', 'fields']) if (!source[name]) issues.push(`missing "${name}"`);
+  // An SFTP source has a "path" instead of a "url" (checked in checkFetch).
+  const required = source.transport === 'sftp' ? ['id', 'name', 'format', 'fields'] : ['id', 'name', 'format', 'url', 'fields'];
+  for (const name of required) if (!source[name]) issues.push(`missing "${name}"`);
   if (source.format && !['xml', 'csv', 'json'].includes(source.format)) issues.push(`format must be xml, csv or json, not "${source.format}"`);
   if (source.format === 'xml' && !source.record) issues.push('xml sources need "record" (the record element name)');
   if (source.id && !/^[a-z][a-z0-9-]{1,30}$/.test(source.id)) issues.push('id must be lowercase letters, digits or dashes');
@@ -102,7 +120,17 @@ function checkSource(source) {
   for (const [value, mapped] of Object.entries((source.values || {}).status || {})) {
     if (!FEED_STATUSES.includes(mapped)) issues.push(`values.status maps "${value}" to "${mapped}", which is not one of ${FEED_STATUSES.join(', ')}`);
   }
+  const markup = source.markup;
+  if (markup !== undefined) {
+    if (!markup || typeof markup !== 'object' || Array.isArray(markup)) issues.push('markup must be an object like { "percent": 30 }');
+    else {
+      for (const key of Object.keys(markup)) if (!['percent', 'add', 'round'].includes(key)) issues.push(`markup.${key} is not a markup setting (percent, add, round)`);
+      for (const key of ['percent', 'add']) if (markup[key] !== undefined && !Number.isFinite(markup[key])) issues.push(`markup.${key} must be a number`);
+      if (Number.isFinite(markup.percent) && markup.percent <= -100) issues.push('markup.percent must be above -100');
+      if (markup.round !== undefined && !ROUNDING.includes(markup.round)) issues.push(`markup.round must be one of ${ROUNDING.join(', ')}`);
+    }
+  }
   return issues;
 }
 
-if (typeof module !== 'undefined') module.exports = { UNIT_TYPES, FEED_STATUSES, parseNumber, mapRow, checkSource };
+if (typeof module !== 'undefined') module.exports = { UNIT_TYPES, FEED_STATUSES, parseNumber, applyMarkup, mapRow, checkSource };

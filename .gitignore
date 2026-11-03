@@ -10,3 +10,4 @@ Thumbs.db
 .venv/
 .pytest_cache/
 .claude/
+CLAUDE.md

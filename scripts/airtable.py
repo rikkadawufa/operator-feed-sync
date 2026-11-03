@@ -57,8 +57,11 @@ class Airtable:
             self._request("PATCH", table, body={"performUpsert": {"fieldsToMergeOn": [merge_on]}, "typecast": True,
                                                 "records": [{"fields": fields} for fields in records[start:start + 10]]})
 
-    def clear(self, table):
-        ids = [record["id"] for record in self.records(table)]
+    def delete_where(self, table, formula):
+        return self.clear(table, formula)
+
+    def clear(self, table, formula=None):
+        ids = [record["id"] for record in self.records(table, formula)]
         for start in range(0, len(ids), 10):
             self._request("DELETE", table, {"records[]": ids[start:start + 10]})
         return len(ids)
