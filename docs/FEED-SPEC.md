@@ -5,6 +5,8 @@ This is what the marketplace needs from each operator's feed. You can use your o
 ## Format and delivery
 
 - One URL that returns your complete current list of units every time: all of them, not only what changed since last time. A unit missing from the feed is treated as gone.
+- The URL can be open, or protected with an API key (in a header or the URL), a bearer token or a username and password. Send us the key separately, not in the feed. Protected feeds must use `https`.
+- Instead of a URL, a file on an SFTP server works too (we need the host, a login and the file path), and so does a Google Sheet shared as "Anyone with the link can view" (one tab per feed).
 - XML, CSV (UTF-8, header row, comma or semicolon) or JSON.
 - The URL answers HTTP 200 with the full file. If you're mid-export or down, answer with an error code (503 is fine) rather than an empty or partial file. A login or error web page in place of the feed is treated as unavailable, and nothing changes.
 
@@ -16,7 +18,7 @@ This is what the marketplace needs from each operator's feed. You can use your o
 | Title | yes | Plain text |
 | Unit type | yes | One consistent set of values, for example `S / M / L` or `Small Unit / Medium Unit` |
 | Size | yes | A positive number, in m² or sq ft (tell us which) |
-| Monthly price | yes | A positive number. A currency symbol and thousands separators are fine. |
+| Monthly price | yes | A positive number. A currency symbol and thousands separators are fine. If you send your cost price, tell us the markup and we add it on our side. |
 | Status | yes | One consistent set of values meaning available / rented / withdrawn |
 | Area | no | Neighborhood or district |
 | Climate controlled | no | yes/no, Y/N, true/false |

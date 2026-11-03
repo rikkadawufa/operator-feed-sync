@@ -1,5 +1,5 @@
 // Compares one source's feed with what the marketplace already has and decides every write.
-// Needs parse.js and map.js inlined before it. Pure: no network, so the rules are unit tested.
+// Needs parse.js, map.js and fetch.js inlined before it. Pure: no network, so the rules are unit tested.
 
 const STATUS_FOR = { available: 'Active', rented: 'Closed', withdrawn: 'Closed' };
 const CLOSE_REASON_FOR = { rented: 'Rented', withdrawn: 'Withdrawn' };
@@ -70,7 +70,7 @@ function planSync({ source, fetchResult, existing, runId, mode = 'live' }) {
     return result;
   };
 
-  const configIssues = checkSource(source);
+  const configIssues = [...checkSource(source), ...checkFetch(source)];
   if (configIssues.length) {
     result.outcome = 'Mapping file error';
     result.notes.push(`${source.configLabel || `sources/${source.id}.json`}: ${configIssues.join('; ')}`);

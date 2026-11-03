@@ -1,0 +1,23 @@
+ok   x-header: outcome 'OK', expected 'OK'
+ok   x-header: created 10, expected 10
+ok   x-bearer: outcome 'OK', expected 'OK'
+ok   x-bearer: created 10, expected 10
+ok   x-basic: outcome 'OK', expected 'OK'
+ok   x-basic: created 10, expected 10
+ok   x-query: outcome 'OK', expected 'OK'
+ok   x-query: created 10, expected 10
+ok   x-wrong-key: outcome 'Feed unavailable', expected 'Feed unavailable'
+ok   x-wrong-key: note mentions 'HTTP 401'
+ok   x-wrong-key: secret value not in the report
+ok   x-no-secret: outcome 'Feed unavailable', expected 'Feed unavailable'
+ok   x-no-secret: note mentions 'NOT_SET_ANYWHERE is not set'
+ok   x-markup: outcome 'OK', expected 'OK'
+ok   x-markup: created 10, expected 10
+skip x-markup: price check needs the self-hosted plan file; skipped
+ok   x-sftp: outcome 'OK', expected 'OK'
+ok   x-sftp: created 10, expected 10
+ok   x-sftp-missing: outcome 'Feed unavailable', expected 'Feed unavailable'
+ok   x-sheet: outcome 'OK with row errors', must not be 'Feed unavailable'
+ok   x-sheet: read 30 rows, expected at least 20
+
+0 failed

@@ -9,12 +9,23 @@ const path = require('path');
 const root = process.env.FEEDS_DIR || path.join(__dirname, '..', 'sample-data', 'feeds');
 const types = { '.xml': 'application/xml', '.csv': 'text/csv', '.json': 'application/json' };
 
+function authorized(req, auth) {
+  if (auth.header) return req.headers[auth.header.toLowerCase()] === auth.value;
+  if (auth.bearer) return req.headers.authorization === `Bearer ${auth.bearer}`;
+  if (auth.basic) return req.headers.authorization === `Basic ${Buffer.from(auth.basic).toString('base64')}`;
+  if (auth.query) return new URL(req.url, 'http://feeds').searchParams.get(auth.query) === auth.value;
+  return false;
+}
+
 http.createServer((req, res) => {
   const match = /^\/feeds\/([a-z0-9-]+)$/.exec(req.url.split('?')[0]);
   let state = {};
   try { state = JSON.parse(fs.readFileSync(path.join(root, 'state.json'), 'utf8')); } catch { /* no state yet */ }
   const entry = match && state[match[1]];
   if (!entry) { res.writeHead(404, { 'Content-Type': 'text/plain' }); res.end('Unknown feed'); return; }
+  // A feed behind a key: { "auth": { "header": "X-API-Key", "value": "…" } }, { "bearer": "…" },
+  // { "basic": "user:password" } or { "query": "api_key", "value": "…" }. Wrong or missing → 401.
+  if (entry.auth && !authorized(req, entry.auth)) { res.writeHead(401, { 'Content-Type': 'text/plain' }); res.end('Unauthorized'); return; }
   if (entry.status && entry.status !== 200) { res.writeHead(entry.status, { 'Content-Type': 'text/plain' }); res.end('Service Unavailable'); return; }
   const file = path.join(root, entry.file);
   if (!file.startsWith(root) || !fs.existsSync(file)) { res.writeHead(404, { 'Content-Type': 'text/plain' }); res.end('Feed file missing'); return; }

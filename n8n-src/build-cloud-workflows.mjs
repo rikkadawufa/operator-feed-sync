@@ -4,7 +4,7 @@
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { CREDS, id, stableUuid, at, edge, note, source, code, ifNode, greater, airtableAuth } from './build-workflows.mjs';
+import { addSftpBranch, CREDS, id, stableUuid, at, edge, note, source, code, ifNode, greater, airtableAuth } from './build-workflows.mjs';
 
 const root = dirname(fileURLToPath(import.meta.url));
 const outputDir = join(root, '..', 'workflows-cloud');
@@ -40,9 +40,11 @@ function feedSync() {
     note('Safety', '## Safety rules (in **Plan changes**)\n- Feed down, empty or unreadable: nothing changes for that source.\n- Feed far smaller than what is live: updates go through, removals are **held** as Pending removal.\n- Bad row: skipped and named in Row Errors; its listing is not closed.\n- If current listings can\'t be read, the run stops instead of creating duplicates.', 760, -260, 900, 220, 5),
     at({ id: 'run-now', name: 'Run now (webhook)', type: 'n8n-nodes-base.webhook', typeVersion: 2, position: [0, 0], webhookId: stableUuid('feed-sync-cloud'), parameters: { httpMethod: 'POST', path: 'feed-sync', responseMode: 'responseNode', options: {} } }, -440, 100),
     at({ id: 'every-6-hours', name: 'Every 6 hours', type: 'n8n-nodes-base.scheduleTrigger', typeVersion: 1.2, position: [0, 0], disabled: true, parameters: { rule: { interval: [{ field: 'hours', hoursInterval: 6 }] } } }, -440, 300),
-    settings([['airtableBaseId', 'appXXXXXXXXXXXXXX'], ['slackWebhookUrl', 'https://hooks.slack.com/services/XXX']], -220, 200),
+    settings([['airtableBaseId', 'appXXXXXXXXXXXXXX'], ['slackWebhookUrl', 'https://hooks.slack.com/services/XXX'], ['feedSecrets', '{}']], -220, 200),
     airtableList('Read feed sources', 'Feed%20Sources', [], 0, 200),
-    at(code('Load sources', `const trigger = $('Run now (webhook)').isExecuted ? $('Run now (webhook)').first().json : {};
+    at(code('Load sources', `${source('fetch')}
+
+const trigger = $('Run now (webhook)').isExecuted ? $('Run now (webhook)').first().json : {};
 const body = trigger.body || {};
 const runId = String(body.run || new Date().toISOString().slice(0, 16).replace(':', ''));
 if (!/^[A-Za-z0-9._-]{1,40}$/.test(runId)) throw new Error('run id may only use letters, digits, dot, dash and underscore');
@@ -57,20 +59,35 @@ const sources = rows.map((record) => {
 }).filter((s) => s.id).sort((a, b) => a.id.localeCompare(b.id));
 const picked = sources.filter((s) => (only ? only.includes(s.id) : s.enabled));
 if (!picked.length) throw new Error('no sources to run' + (only ? ': ' + only.join(', ') : ''));
-return picked.map((s) => ({ json: { runId, mode, source: s } }));`), 220, 200),
+let feedSecrets = {};
+try { feedSecrets = JSON.parse($('Settings').first().json.feedSecrets || '{}'); }
+// No parser message here: it quotes part of the text, which would put a key into the Slack alert.
+catch (error) { throw new Error('Settings > feedSecrets is not valid JSON (check the quotes and commas)'); }
+const secretFor = (name) => feedSecrets[name] || '';
+// The secret values travel with the item only as far as Fetch feed; notes and alerts redact them.
+return picked.map((s) => {
+  try {
+    const request = feedRequest(s, secretFor);
+    return { json: { runId, mode, source: s, fetchUrl: request.url, fetchHeaders: request.headers, secrets: request.secrets } };
+  } catch (error) {
+    return { json: { runId, mode, source: s, fetchError: error.message, secrets: [] } };
+  }
+});`), 220, 200),
     at({ id: 'each-source', name: 'Each source', type: 'n8n-nodes-base.splitInBatches', typeVersion: 3, position: [0, 0], parameters: { batchSize: 1, options: {} } }, 440, 200),
     at({
       id: 'fetch-feed', name: 'Fetch feed', type: 'n8n-nodes-base.httpRequest', typeVersion: 4.2, position: [0, 0],
       retryOnFail: true, maxTries: 2, waitBetweenTries: 3000, onError: 'continueRegularOutput',
-      parameters: { method: 'GET', url: "={{ $json.source.url || 'http://invalid.local/' }}", options: { timeout: 15000, response: { response: { fullResponse: true, neverError: true, responseFormat: 'text' } } } },
+      parameters: { method: 'GET', url: "={{ $json.fetchUrl || 'http://invalid.local/' }}", sendHeaders: true, specifyHeaders: 'json', jsonHeaders: '={{ JSON.stringify($json.fetchHeaders || {}) }}', options: { timeout: 15000, response: { response: { fullResponse: true, neverError: true, responseFormat: 'text' } } } },
     }, 680, 100),
     airtableList('Read current listings', 'Listings', [{ name: 'filterByFormula', value: "={{ \"{Source}='\" + $('Each source').first().json.source.id + \"'\" }}" }], 900, 100),
-    at(code('Plan changes', `${source('parse', 'map', 'plan')}
+    at(code('Plan changes', `${source('parse', 'map', 'fetch', 'plan')}
 
 const job = $('Each source').first().json;
-const response = $('Fetch feed').first().json;
-const fetchResult = response.error
-  ? { error: String(response.error.message || response.error).slice(0, 200) }
+const response = $('Feed response').first().json;
+const fetchResult = job.fetchError
+  ? { error: job.fetchError }
+  : response.error
+  ? { error: redact(String(response.error.message || response.error), job.secrets).slice(0, 200) }
   : (() => {
       // With responseFormat "text" n8n puts the body in \`data\`; keep \`body\` as a fallback.
       const raw = response.data !== undefined ? response.data : response.body;
@@ -116,7 +133,7 @@ for (const p of plans) for (const n of p.notes) lines.push('  ' + p.source + ': 
 return [{ json: { runId, mode: plans[0].mode, sources: plans.map((p) => ({ source: p.source, outcome: p.outcome, summary: p.summary, notes: p.notes, rowErrors: p.rowErrors })), text: lines.join('\\n') + '\\n' } }];`), 680, 380),
     at({ id: 'reply', name: 'Reply with report', type: 'n8n-nodes-base.respondToWebhook', typeVersion: 1.1, position: [0, 0], parameters: { respondWith: 'json', responseBody: '={{ JSON.stringify($json) }}', options: {} } }, 900, 380),
   ];
-  return workflow('wfFeedSyncCloud', 'Feed sync (Cloud): supplier feeds to Listings', nodes, {
+  const wired = addSftpBranch(nodes, {
     'Run now (webhook)': { main: [[edge('Settings')]] },
     'Every 6 hours': { main: [[edge('Settings')]] },
     Settings: { main: [[edge('Read feed sources')]] },
@@ -132,6 +149,7 @@ return [{ json: { runId, mode: plans[0].mode, sources: plans.map((p) => ({ sourc
     'Send alert': { main: [[edge('Each source')]] },
     'Build report': { main: [[edge('Reply with report')]] },
   });
+  return workflow('wfFeedSyncCloud', 'Feed sync (Cloud): supplier feeds to Listings', wired.nodes, wired.connections);
 }
 
 function errorHandler() {

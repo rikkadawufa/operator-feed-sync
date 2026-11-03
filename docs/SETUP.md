@@ -43,7 +43,7 @@ docker compose up -d
 python scripts/n8n_setup.py
 ```
 
-n8n runs at http://localhost:5681. The simulated operator feeds are at http://localhost:8081/feeds/<id>.
+n8n runs at http://localhost:5681. The simulated operator feeds are at http://localhost:8081/feeds/<id>. A test SFTP server (service `sftp`) serves the same files under `/feeds`, and `n8n_setup.py` adds its test login as the **Supplier SFTP** credential. The two `FEED_SECRET_DEMO_*` variables in `docker-compose.yml` are the test keys of the simulated feeds; a real install puts its operators' keys there ([ONBOARDING.md](ONBOARDING.md#optional-settings)).
 
 ## 4. Run the demo days
 
@@ -51,6 +51,7 @@ n8n runs at http://localhost:5681. The simulated operator feeds are at http://lo
 python scripts/run_scenarios.py --reset
 python scripts/check_results.py
 node --test n8n-src/code/*.test.js
+python scripts/run_extras.py
 ```
 
-`--reset` deletes every row in the three tables first, so use it only on the demo base.
+`--reset` deletes every row in the three tables first, so use it only on the demo base. `run_extras.py` checks the optional feed settings (keys, SFTP, Google Sheets, markup) with dry runs, which write nothing to Listings.

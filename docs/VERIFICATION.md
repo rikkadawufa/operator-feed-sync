@@ -13,7 +13,9 @@ node --test n8n-src/code/*.test.js        # unit tests for the sync rules
 ## Results
 
 - `check_results.py`: 105 of 105 checks pass. It checks the numbers in each run's n8n report and an Airtable snapshot read back after each run, and confirms in every run that no Listing key appears twice. Output: [results/check-results.txt](../results/check-results.txt).
-- Unit tests: 26 of 26 pass.
+- Unit tests: 37 of 37 pass.
+- Optional feed settings, 2026-11-04, self-hosted and n8n-cloudsim: `run_extras.py`, all dry runs against Quayside's day-1 feed served behind each kind of key: header key, bearer token, basic login and URL key each read the feed (10 planned); a wrong key stopped at HTTP 401 without the key showing in the report; a secret that isn't set stopped with that name in the note; a 25% markup rounded to .99 planned Q-05 at 147.99 (self-hosted only; the Cloud report has no prices); the SFTP branch read the same file from the test SFTP server (10 planned) and a missing file stopped the source; a Google Sheets edit link read Google's public sample sheet (30 rows, which fail the storage mapping, as expected). Output: [results/extras-selfhosted.txt](../results/extras-selfhosted.txt), [results/extras-cloudsim.txt](../results/extras-cloudsim.txt). R1 to R8 were re-run on both after these changes: 105 of 105 each.
+- A copy of the Cloud workflow with no SFTP credential published and ran a CSV source normally (n8n-cloudsim).
 - n8n event log: 42 executions of the feed sync workflow that day, all successful. The error workflow never fired. The sequence was run from an empty base several times to take screenshots at each step, and every pass gave the same counts.
 - Slack alert node: 22 runs, all successful. Each complete pass through R3 to R5 sends 5 alerts (R3 Quayside's bad rows, R4 Northgate down plus Quayside, R5 removals held plus Quayside), and four passes make 20. The other 2 came from the first R1 attempt described under Fixes. The evidence is the n8n event log; there are no screenshots of Slack.
 
@@ -46,6 +48,9 @@ After R8 the Listings table has 28 rows and no duplicates. Each run's report is 
 - If Airtable can't be read, the workflow stops and alerts, by design. That path wasn't triggered.
 - An unreachable feed (DNS failure, timeout) takes the same Feed unavailable path. The live runs tested only HTTP 503; empty and cut-off XML, HTML pages, a missing or empty ref column, duplicate-ref padding and renumbered IDs were tested only in unit tests.
 - No login protection and no deployment. Everything ran on localhost.
+- Feed keys and SFTP were tested only against the local simulated feed server and an `atmoz/sftp` container, not a real supplier. FTP without TLS, SFTP with a private key instead of a password, OAuth and feeds that need a login request first are not built. On n8n Cloud itself (not cloudsim) neither keys nor SFTP were run.
+- Secret values are blanked out in notes and alerts, but n8n keeps them in the item data of Load sources and, if a request fails at the network level, in the error's request details. Anyone who can open the execution log can read them.
+- Google Sheets was read live only from Google's public sample sheet, not a sheet laid out as a feed; the full sync of a Sheets-shaped feed was checked in unit tests (CRLF CSV, sign-in page).
 - A listing edited by hand in Airtable isn't overwritten until the feed changes that unit, because the sync compares against the hash it stored last time, not the current cell values.
 - A single unit missing from a feed is closed in that run. There is no grace period (for example, missing two runs in a row); if the unit comes back, the same listing reopens.
 - Two runs at the same time aren't prevented.
